@@ -6,6 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.41-red.svg)](https://streamlit.io)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5+-orange.svg)](https://www.trychroma.com)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](.)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
 ---
@@ -46,6 +47,7 @@
 ┌────────────────────────────────────────────────┐
 │                   Streamlit 前端                  │
 │             http://localhost:8501                │
+│  生成笔记 │ 我的笔记(新) │ 出题练习 │ 知识问答    │
 └────────────────────┬───────────────────────────┘
                      │ HTTP/REST
 ┌────────────────────▼───────────────────────────┐
@@ -53,6 +55,10 @@
 │  ┌──────────────────────────────────────────┐  │
 │  │         Agent Orchestrator（编排器）       │  │
 │  │   TaskRouter → 意图识别 → Agent 分发       │  │
+│  └──────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────┐  │
+│  │         Service Layer（服务层） NEW        │  │
+│  │   NoteService: SQLite + Chunk + Embed     │  │
 │  └──────────────────────────────────────────┘  │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
 │  │ NoteAgent │ │QuizAgent │ │RetrievalAgent│  │
@@ -65,7 +71,7 @@
 │  └──────────┘ └──────────┘ └──────────────┘  │
 │  ┌──────────────────────────────────────────┐  │
 │  │            LLM Router（模型路由）           │  │
-│  │   DeepSeek │ OpenAI │ Ollama（本地）       │  │
+│  │  DeepSeek │ OpenAI │ Ollama │ 本地Embed  │  │
 │  └──────────────────────────────────────────┘  │
 └───────┬─────────────────────┬──────────────────┘
         │                     │
@@ -79,11 +85,14 @@
 
 ## 核心功能
 
-### 已实现（MVP）
+### 已实现（v0.2）
 
 | 功能 | 说明 |
 |------|------|
 | 📝 **笔记生成** | 输入主题 + 补充材料 → AI 生成结构化 Markdown 笔记 |
+| 💾 **笔记持久化** | 生成后自动存入 SQLite + 分块 → Embedding → ChromaDB 索引 |
+| 🔀 **Embedding 三级 Fallback** | OpenAI → 本地 sentence-transformers → 跳过（优雅降级） |
+| 📚 **笔记管理** | 笔记列表（分页）、详情查看、删除（SQLite + ChromaDB 同步） |
 | 🎯 **出题练习** | 选择题/简答题/判断题/默写题，支持 3 档难度 |
 | 🔍 **知识问答 (RAG)** | 基于向量检索的语义搜索 + LLM 带引用回答 |
 | 🔀 **多模型路由** | DeepSeek / OpenAI / Ollama 可切换，按任务复杂度选模型 |
@@ -93,10 +102,9 @@
 
 | 功能 | 状态 |
 |------|------|
-| 笔记持久化存储（SQL + VectorDB） | ⚠️ 生成链路待打通 |
 | 文件上传入库（PDF/MD/TXT） | ❌ 代码标记 TODO |
 | 错题本 + 遗忘曲线追踪 | ❌ 模型已定义，Agent 待完善 |
-| SM-2 学习计划调度 | ❌ 待实现 |
+| SM-2 学习计划调度 | ❌ 算法已实现，前端待联动 |
 | 易混概念对检测 | ❌ 待实现 |
 
 ---
@@ -108,9 +116,10 @@
 | **后端框架** | FastAPI + Uvicorn | REST API 服务 |
 | **前端** | Streamlit | 纯 Python 前端界面 |
 | **LLM** | DeepSeek / OpenAI / Ollama | 多模型可切换 |
-| **Agent 框架** | 自研（BaseAgent + Orchestrator） | Multi-Agent 协作 |
+| **Embedding** | OpenAI / sentence-transformers | 三级 Fallback（API → 本地 → 跳过） |
+| **Agent 框架** | 自研（BaseAgent + Orchestrator + Service） | Multi-Agent + 服务层 |
 | **向量数据库** | ChromaDB | 文档 Embedding 语义检索 |
-| **关系数据库** | SQLite + SQLAlchemy | 结构化数据存储 |
+| **关系数据库** | SQLite + SQLAlchemy（WAL 模式） | 结构化数据存储 |
 | **文本切块** | 自研 Markdown Splitter | 按标题层级智能分块 |
 | **配置管理** | pydantic-settings + .env | 环境变量管理 |
 
@@ -207,16 +216,19 @@ streamlit run streamlit_app.py
 │   │   │   ├── memory_agent.py     # 记忆追踪 Agent
 │   │   │   ├── retrieval_agent.py  # RAG 检索 Agent
 │   │   │   └── scheduler_agent.py  # 学习计划 Agent
+│   │   ├── services/               # 业务服务层（NEW v0.2）
+│   │   │   └── note_service.py     # 笔记持久化（SQLite + Chunk + Embed + ChromaDB）
 │   │   ├── llm/
 │   │   │   ├── base.py             # LLM 抽象基类
 │   │   │   ├── deepseek.py         # DeepSeek Provider
 │   │   │   ├── openai.py           # OpenAI Provider
-│   │   │   └── router.py           # LLM 路由器（按任务选模型）
+│   │   │   └── router.py           # LLM 路由器（按任务选模型 + Embedding fallback）
 │   │   ├── db/
-│   │   │   ├── models.py           # SQLAlchemy 数据模型
+│   │   │   ├── session.py          # DB 会话管理器（WAL 模式）NEW
+│   │   │   ├── models.py           # SQLAlchemy 数据模型（7 张表）
 │   │   │   └── vector_store.py     # ChromaDB 向量存储封装
 │   │   ├── api/v1/
-│   │   │   ├── notes.py            # 笔记 API
+│   │   │   ├── notes.py            # 笔记 API（生成+入库+列表+详情+删除）
 │   │   │   ├── quiz.py             # 题目 API
 │   │   │   ├── rag.py              # 知识检索 API
 │   │   │   └── schedule.py         # 学习计划 API
@@ -226,7 +238,7 @@ streamlit run streamlit_app.py
 │   ├── tests/                      # 测试目录
 │   └── requirements.txt            # Python 依赖
 ├── frontend/
-│   └── streamlit_app.py            # Streamlit 前端页面
+│   └── streamlit_app.py            # Streamlit 前端（5 页面）NEW
 ├── data/                           # 数据目录（自动生成）
 │   ├── study_agent.db              # SQLite 数据库
 │   └── chroma_db/                  # ChromaDB 持久化目录
@@ -244,8 +256,10 @@ streamlit run streamlit_app.py
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/v1/notes/generate` | 生成结构化笔记 |
-| GET | `/api/v1/notes` | 笔记列表 |
+| POST | `/api/v1/notes/generate` | 生成结构化笔记 + 自动入库 |
+| GET | `/api/v1/notes` | 笔记列表（分页） |
+| GET | `/api/v1/notes/{note_id}` | 笔记详情 |
+| DELETE | `/api/v1/notes/{note_id}` | 删除笔记（SQLite + ChromaDB 同步） |
 
 ### 题目
 
@@ -273,15 +287,17 @@ streamlit run streamlit_app.py
 
 ## MVP 阶段说明
 
-当前为 **v0.1.0 MVP** 版本，核心 Agent 协作流程已跑通：
+当前为 **v0.2.0** 版本，笔记持久化链路已打通：
 
 ✅ 笔记生成（LLM 输出）  
+✅ **笔记自动入库（SQLite + ChromaDB）— NEW**  
+✅ **Embedding 三级 Fallback（OpenAI → 本地 → 跳过）— NEW**  
+✅ **笔记管理（列表/详情/删除）— NEW**  
 ✅ 出题练习（多题型 + 多难度）  
 ✅ RAG 语义检索（ChromaDB + LLM 回答）  
 ✅ LLM 多模型路由（DeepSeek / OpenAI / Ollama）  
-✅ Streamlit 前端界面  
+✅ Streamlit 5 页面前端  
 
-⚠️ **笔记生成→数据库入库** 的链路待打通  
 ❌ 文件上传解析入库  
 ❌ 错题追踪 + 遗忘曲线  
 ❌ 学习计划自动调度  
@@ -290,7 +306,7 @@ streamlit run streamlit_app.py
 
 ## 路线图
 
-- [ ] **v0.2** — 笔记生成后自动入库（SQLite + ChromaDB）
+- [x] **v0.2** — 笔记生成后自动入库（SQLite + ChromaDB）✅
 - [ ] **v0.3** — 文件上传（PDF/MD/TXT 解析 + 入库）
 - [ ] **v0.4** — 错题本 + SM-2 记忆追踪
 - [ ] **v0.5** — 易混概念对自动检测

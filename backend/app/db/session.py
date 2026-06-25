@@ -30,7 +30,10 @@ class DatabaseManager:
             cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.close()
 
-        self._SessionLocal = sessionmaker(bind=self.engine)
+        self._SessionLocal = sessionmaker(
+            bind=self.engine,
+            expire_on_commit=False,  # commit 后对象属性仍可访问
+        )
         return self.engine, self._SessionLocal
 
     def get_session(self) -> Session:
