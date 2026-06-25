@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # API 地址
-API_BASE = "http://localhost:8000/api/v1"
+API_BASE = "http://127.0.0.1:8000/api/v1"
 
 # ========== 样式 ==========
 st.markdown("""
@@ -50,7 +50,7 @@ with st.sidebar:
 
     # 检查后端连接
     try:
-        resp = requests.get("http://localhost:8000/health", timeout=2)
+        resp = requests.get("http://127.0.0.1:8000/health", timeout=2)
         if resp.status_code == 200:
             data = resp.json()
             st.success(f"✅ 后端已连接 ({data.get('agents', 0)} Agents)")
@@ -254,7 +254,7 @@ elif page == "📝 系统信息":
     st.header("📝 系统信息")
 
     try:
-        resp = requests.get("http://localhost:8000/", timeout=2)
+        resp = requests.get("http://127.0.0.1:8000/", timeout=2)
         if resp.status_code == 200:
             data = resp.json()
             st.json(data)

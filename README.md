@@ -1,5 +1,4 @@
-# 🧠 AI Study Agent
-
+# 🧠 LearnLoop-AI
 > AI 驱动的个性化学习助手 — Multi-Agent 协作系统  
 > "学 → 练 → 测 → 记 → 复" 五步闭环
 
