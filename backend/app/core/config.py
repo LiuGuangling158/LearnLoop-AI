@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # --- Embedding ---
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536  # text-embedding-3-small: 1536, deepseek: 1536
+    # 本地 Embedding fallback（无需 API Key）
+    local_embedding_model: str = "all-MiniLM-L6-v2"
+    local_embedding_dim: int = 384
 
     # --- RAG ---
     chunk_size: int = 1000

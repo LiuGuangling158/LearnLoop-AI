@@ -38,6 +38,23 @@ class Note(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_dict(self) -> dict:
+        """序列化为前端友好的 dict"""
+        import json as _json
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "title": self.title,
+            "content_md": self.content_md,
+            "summary": self.summary,
+            "tags": _json.loads(self.tags) if self.tags else [],
+            "source_type": self.source_type,
+            "embedding_id": self.embedding_id,
+            "word_count": self.word_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
 
 # ========== 题目表 ==========
 class Quiz(Base):
@@ -132,13 +149,8 @@ class ConfusionPair(Base):
 
 # ========== 数据库初始化 ==========
 def init_db():
-    """初始化 SQL 数据库"""
-    engine = create_engine(
-        f"sqlite:///{settings.sqlite_path}",
-        connect_args={"check_same_thread": False},  # SQLite 多线程支持
-        echo=settings.debug,
-    )
-    settings.ensure_data_dirs()
+    """初始化 SQL 数据库（委托给 DatabaseManager）"""
+    from .session import db_manager
+    engine, Session = db_manager.init()
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
     return engine, Session

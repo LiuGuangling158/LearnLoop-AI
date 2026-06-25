@@ -82,12 +82,48 @@ class LLMRouter:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """
-        统一的 Embedding 接口
-        DeepSeek 不支持 Embedding，所以用 OpenAI
+        统一的 Embedding 接口，三级 Fallback：
+        1. OpenAI text-embedding-3-small（最优质量）
+        2. 本地 sentence-transformers 模型（无需 API Key）
+        3. 抛出异常（由调用方决定降级策略）
         """
+        # Tier 1: OpenAI
         if "openai" in self._providers:
-            return await self._providers["openai"].embed(texts)
-        raise RuntimeError("Embedding 需要 OpenAI API Key（DeepSeek 不支持 Embedding）")
+            try:
+                return await self._providers["openai"].embed(texts)
+            except Exception as e:
+                print(f"[WARN] OpenAI embedding 失败: {e}，尝试本地 fallback...")
+
+        # Tier 2: 本地 sentence-transformers
+        try:
+            return await self._embed_local(texts)
+        except Exception as e:
+            print(f"[WARN] 本地 embedding 失败: {e}")
+
+        # Tier 3: 完全不可用
+        raise RuntimeError(
+            "没有可用的 Embedding Provider！\n"
+            "  - 配置 OPENAI_API_KEY 使用 OpenAI Embedding\n"
+            "  - 或安装 sentence-transformers 使用本地模型: pip install sentence-transformers"
+        )
+
+    async def _embed_local(self, texts: list[str]) -> list[list[float]]:
+        """使用本地 sentence-transformers 模型生成 Embedding（无需 API Key）"""
+        from sentence_transformers import SentenceTransformer
+
+        # 懒加载 + 缓存模型
+        if not hasattr(self, "_local_embed_model"):
+            model_name = settings.local_embedding_model
+            print(f"[INFO] 正在加载本地 Embedding 模型: {model_name} ...")
+            self._local_embed_model = SentenceTransformer(model_name)
+            print(f"[OK] 本地 Embedding 模型已加载 (维度: {settings.local_embedding_dim})")
+
+        embeddings = self._local_embed_model.encode(
+            texts,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        return embeddings.tolist()
 
 
 # 全局单例
