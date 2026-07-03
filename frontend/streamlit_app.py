@@ -1,8 +1,9 @@
 """
-AI Study Agent - Streamlit MVP 前端
-纯 Python 写的学习界面，无需 JavaScript
+AI Study Agent - Streamlit MVP 前端 v0.3
+纯 Python 写的学习界面，7 页面
 """
 import sys
+import io
 from pathlib import Path
 
 # 添加 backend 到 path
@@ -14,7 +15,7 @@ import json
 
 # ========== 页面配置 ==========
 st.set_page_config(
-    page_title="AI Study Agent",
+    page_title="LearnLoop-AI",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -30,6 +31,16 @@ if "selected_note_id" not in st.session_state:
     st.session_state.selected_note_id = None
 if "notes_page_offset" not in st.session_state:
     st.session_state.notes_page_offset = 0
+if "notes_search_query" not in st.session_state:
+    st.session_state.notes_search_query = ""
+if "notes_source_filter" not in st.session_state:
+    st.session_state.notes_source_filter = "全部"
+if "kb_page_offset" not in st.session_state:
+    st.session_state.kb_page_offset = 0
+if "error_page_offset" not in st.session_state:
+    st.session_state.error_page_offset = 0
+if "confirm_delete" not in st.session_state:
+    st.session_state.confirm_delete = None
 
 # ========== 样式 ==========
 st.markdown("""
@@ -74,23 +85,86 @@ st.markdown("""
         color: #9ca3af;
         font-size: 0.85rem;
     }
+    .stat-card {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-align: center;
+    }
+    .stat-card.green {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+    .stat-card.orange {
+        background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+    }
+    .error-item {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #fecaca;
+        background: #fef2f2;
+        margin-bottom: 0.6rem;
+    }
+    .error-item.resolved {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #9ca3af;
+    }
+    .empty-state .icon { font-size: 3rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 侧边栏 ==========
-with st.sidebar:
-    st.markdown("## 🧠 AI Study Agent")
-    st.markdown("---")
 
-    # 检查后端连接
+# ========== 工具函数 ==========
+def check_backend():
+    """检查后端连接状态"""
     try:
         resp = requests.get("http://127.0.0.1:8000/health", timeout=2)
         if resp.status_code == 200:
-            data = resp.json()
-            st.success(f"✅ 后端已连接 ({data.get('agents', 0)} Agents)")
-        else:
-            st.error("❌ 后端异常")
+            return resp.json()
     except Exception:
+        pass
+    return None
+
+
+def api_get(path: str, params: dict = None, timeout: int = 10):
+    """封装 GET 请求，统一错误处理"""
+    try:
+        resp = requests.get(f"{API_BASE}{path}", params=params, timeout=timeout)
+        return resp
+    except requests.exceptions.ConnectionError:
+        st.error("❌ 无法连接到后端，请先启动 FastAPI 服务（`cd backend && python -m app.main`）")
+        return None
+
+
+def api_post(path: str, json_data: dict = None, files: dict = None, timeout: int = 120):
+    """封装 POST 请求，统一错误处理"""
+    try:
+        if files:
+            resp = requests.post(f"{API_BASE}{path}", files=files, data=json_data, timeout=timeout)
+        else:
+            resp = requests.post(f"{API_BASE}{path}", json=json_data, timeout=timeout)
+        return resp
+    except requests.exceptions.ConnectionError:
+        st.error("❌ 无法连接到后端，请先启动 FastAPI 服务（`cd backend && python -m app.main`）")
+        return None
+
+
+# ========== 侧边栏 ==========
+with st.sidebar:
+    st.markdown("## 🧠 LearnLoop-AI")
+    st.markdown("v0.3.0 — 学→练→测→记→复")
+    st.markdown("---")
+
+    # 后端状态
+    backend = check_backend()
+    if backend:
+        st.success(f"✅ 后端已连接 ({backend.get('agents', 0)} Agents)")
+    else:
         st.error("❌ 后端未启动\n\n请先运行:\n```bash\ncd backend\npython -m app.main\n```")
 
     st.markdown("---")
@@ -98,7 +172,15 @@ with st.sidebar:
     # 导航
     page = st.radio(
         "选择功能",
-        ["📝 生成笔记", "📚 我的笔记", "🎯 出题练习", "🔍 知识问答", "📊 系统信息"],
+        [
+            "📝 生成笔记",
+            "📚 我的笔记",
+            "📁 知识库管理",
+            "🎯 出题练习",
+            "🔍 知识问答",
+            "📋 错题本",
+            "📊 系统信息",
+        ],
         label_visibility="collapsed",
     )
 
@@ -106,9 +188,11 @@ with st.sidebar:
     st.markdown("### 💡 提示")
     st.info("在 .env 中配置 DEEPSEEK_API_KEY 后才能使用 AI 功能")
 
-# ========== 主区域 ==========
-st.markdown('<p class="main-title">🧠 AI Study Agent</p>', unsafe_allow_html=True)
-st.markdown("*AI 驱动的个性化学习助手 — Multi-Agent 系统*")
+
+# ========== 主区域标题 ==========
+st.markdown('<p class="main-title">🧠 LearnLoop-AI</p>', unsafe_allow_html=True)
+st.markdown("*AI 驱动的个性化学习助手 — Multi-Agent 系统 v0.3*")
+
 
 # ===================================================================
 # 📝 生成笔记
@@ -127,63 +211,51 @@ if page == "📝 生成笔记":
 
     if st.button("🚀 生成笔记", type="primary", disabled=not topic):
         with st.spinner("AI 正在整理笔记..."):
-            try:
-                resp = requests.post(
-                    f"{API_BASE}/notes/generate",
-                    json={
-                        "topic": topic,
-                        "source_text": source_text,
-                        "style": style,
-                    },
-                    timeout=120,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    note = data.get("data", {})
+            resp = api_post("/notes/generate", {
+                "topic": topic,
+                "source_text": source_text,
+                "style": style,
+            })
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                note = data.get("data", {})
 
-                    # 入库状态提示
+                # 入库状态提示
+                if note.get("_persisted"):
+                    st.success("✅ 笔记已保存到知识库")
+                elif note.get("_save_error"):
+                    st.warning(f"⚠️ 笔记已生成，但保存失败: {note['_save_error']}")
+
+                st.markdown("---")
+                st.markdown(f"## 📄 {note.get('title', topic)}")
+
+                with st.container():
+                    st.markdown(note.get("content_md", "无内容"))
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("章节数", note.get("sections_count", 0))
+                with col2:
+                    tags = note.get("tags", [])
+                    st.markdown(f"**标签:** {' '.join(['`' + t + '`' for t in tags])}")
+                with col3:
+                    st.metric("耗时", f"{data.get('metadata', {}).get('elapsed_ms', 0)}ms")
+                with col4:
                     if note.get("_persisted"):
-                        st.success("✅ 笔记已保存到知识库")
-                    elif note.get("_save_error"):
-                        st.warning(f"⚠️ 笔记已生成，但保存失败: {note['_save_error']}")
+                        if st.button("📚 查看我的笔记", key="goto_notes_from_gen"):
+                            st.session_state.notes_page_view = "list"
+                            st.rerun()
 
-                    st.markdown("---")
-                    st.markdown(f"## 📄 {note.get('title', topic)}")
+                if note.get("summary"):
+                    with st.expander("📝 一句话总结"):
+                        st.info(note["summary"])
 
-                    # 显示笔记内容
-                    with st.container():
-                        st.markdown(note.get("content_md", "无内容"))
-
-                    # 底部信息
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("章节数", note.get("sections_count", 0))
-                    with col2:
-                        tags = note.get("tags", [])
-                        st.markdown(f"**标签:** {' '.join(['`' + t + '`' for t in tags])}")
-                    with col3:
-                        st.metric("耗时", f"{data.get('metadata', {}).get('elapsed_ms', 0)}ms")
-                    with col4:
-                        if note.get("_persisted"):
-                            if st.button("📚 查看我的笔记", key="goto_notes_from_gen"):
-                                st.session_state.notes_page_view = "list"
-                                st.rerun()
-
-                    # 摘要
-                    if note.get("summary"):
-                        with st.expander("📝 一句话总结"):
-                            st.info(note["summary"])
-
-                else:
-                    st.error(f"请求失败: {resp.status_code} - {resp.text}")
-            except requests.exceptions.ConnectionError:
-                st.error("无法连接到后端，请先启动 FastAPI 服务")
-            except Exception as e:
-                st.error(f"错误: {str(e)}")
+            elif resp:
+                st.error(f"请求失败: {resp.status_code} - {resp.text}")
 
 
 # ===================================================================
-# 📚 我的笔记
+# 📚 我的笔记（增强：搜索 + 过滤）
 # ===================================================================
 elif page == "📚 我的笔记":
 
@@ -191,170 +263,313 @@ elif page == "📚 我的笔记":
     if st.session_state.notes_page_view == "detail" and st.session_state.selected_note_id:
         note_id = st.session_state.selected_note_id
 
-        # 返回按钮
         if st.button("← 返回笔记列表"):
             st.session_state.notes_page_view = "list"
             st.session_state.selected_note_id = None
             st.rerun()
 
-        # 加载笔记
-        try:
-            resp = requests.get(f"{API_BASE}/notes/{note_id}", timeout=10)
-            if resp.status_code == 200:
-                note = resp.json().get("data", {})
+        resp = api_get(f"/notes/{note_id}")
+        if resp and resp.status_code == 200:
+            note = resp.json().get("data", {})
 
-                st.header(f"📄 {note.get('title', '无标题')}")
+            st.header(f"📄 {note.get('title', '无标题')}")
 
-                # 元信息栏
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.caption(f"📅 {note.get('created_at', '')[:10] if note.get('created_at') else '未知'}")
-                with col2:
-                    st.caption(f"📝 {note.get('word_count', 0)} 字")
-                with col3:
-                    st.caption(f"📂 {note.get('source_type', '')}")
-                with col4:
-                    tags = note.get("tags", [])
-                    if tags:
-                        tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in tags])
-                        st.markdown(tag_html, unsafe_allow_html=True)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.caption(f"📅 {note.get('created_at', '')[:10] if note.get('created_at') else '未知'}")
+            with col2:
+                st.caption(f"📝 {note.get('word_count', 0)} 字")
+            with col3:
+                st.caption(f"📂 {note.get('source_type', '')}")
+            with col4:
+                tags = note.get("tags", [])
+                if tags:
+                    tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in tags])
+                    st.markdown(tag_html, unsafe_allow_html=True)
 
+            st.markdown("---")
+            st.markdown(note.get("content_md", "无内容"))
+
+            if note.get("summary"):
                 st.markdown("---")
+                with st.expander("📝 一句话总结"):
+                    st.info(note["summary"])
 
-                # 完整 Markdown 内容
-                st.markdown(note.get("content_md", "无内容"))
+            st.markdown("---")
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                if st.button("🗑️ 删除此笔记", type="secondary"):
+                    st.session_state.confirm_delete = note_id
+                    st.rerun()
 
-                # 摘要
-                if note.get("summary"):
-                    st.markdown("---")
-                    with st.expander("📝 一句话总结"):
-                        st.info(note["summary"])
-
-                # 操作按钮
-                st.markdown("---")
-                col1, col2 = st.columns([1, 5])
-                with col1:
-                    if st.button("🗑️ 删除此笔记", type="secondary"):
-                        # 二次确认
-                        st.session_state.confirm_delete = note_id
+            if st.session_state.get("confirm_delete") == note_id:
+                st.warning("确定要删除这篇笔记吗？此操作不可撤消。")
+                col_yes, col_no = st.columns([1, 5])
+                with col_yes:
+                    if st.button("✅ 确认删除", type="primary"):
+                        del_resp = api_get(f"/notes/{note_id}", timeout=10)  # won't work, need DELETE
+                        try:
+                            del_resp = requests.delete(f"{API_BASE}/notes/{note_id}", timeout=10)
+                            if del_resp.status_code == 200:
+                                st.success("笔记已删除")
+                                st.session_state.notes_page_view = "list"
+                                st.session_state.selected_note_id = None
+                                st.session_state.pop("confirm_delete", None)
+                                st.rerun()
+                            else:
+                                st.error(f"删除失败: {del_resp.status_code}")
+                        except Exception as e:
+                            st.error(f"删除失败: {str(e)}")
+                with col_no:
+                    if st.button("❌ 取消"):
+                        st.session_state.pop("confirm_delete", None)
                         st.rerun()
 
-                # 确认删除对话框
-                if st.session_state.get("confirm_delete") == note_id:
-                    st.warning("确定要删除这篇笔记吗？此操作不可撤消。")
-                    col_yes, col_no = st.columns([1, 5])
-                    with col_yes:
-                        if st.button("✅ 确认删除", type="primary"):
+        elif resp:
+            st.error(f"笔记不存在 (HTTP {resp.status_code})")
+            if st.button("← 返回列表"):
+                st.session_state.notes_page_view = "list"
+                st.session_state.selected_note_id = None
+                st.rerun()
+
+    # --- 笔记列表视图 ---
+    else:
+        st.header("📚 我的笔记")
+        st.markdown("已保存的学习笔记，支持搜索和过滤")
+
+        # 搜索 + 过滤栏
+        col_search, col_filter, col_clear = st.columns([4, 2, 1])
+        with col_search:
+            search_query = st.text_input(
+                "🔍 搜索笔记",
+                value=st.session_state.notes_search_query,
+                placeholder="输入关键词搜索标题和内容...",
+                label_visibility="collapsed",
+            )
+            st.session_state.notes_search_query = search_query
+        with col_filter:
+            source_filter = st.selectbox(
+                "来源",
+                ["全部", "AI生成", "上传的"],
+                index=["全部", "AI生成", "上传的"].index(st.session_state.notes_source_filter)
+                if st.session_state.notes_source_filter in ["全部", "AI生成", "上传的"]
+                else 0,
+                label_visibility="collapsed",
+            )
+            st.session_state.notes_source_filter = source_filter
+        with col_clear:
+            if st.button("🔄 重置"):
+                st.session_state.notes_search_query = ""
+                st.session_state.notes_source_filter = "全部"
+                st.session_state.notes_page_offset = 0
+                st.rerun()
+
+        # 构建 API 参数
+        source_type_map = {"全部": None, "AI生成": "generated", "上传的": "uploaded"}
+        api_source_type = source_type_map.get(source_filter)
+
+        offset = st.session_state.notes_page_offset
+        if search_query or api_source_type:
+            resp = api_get("/notes/search", {
+                "query": search_query,
+                "source_type": api_source_type,
+                "limit": 20,
+                "offset": offset,
+            })
+        else:
+            resp = api_get("/notes", {"limit": 20, "offset": offset})
+
+        if resp and resp.status_code == 200:
+            data = resp.json()
+            notes = data.get("data", [])
+            pagination = data.get("pagination", {})
+            total = pagination.get("total", 0)
+
+            st.caption(f"共 {total} 篇笔记" + (f"（搜索: {search_query}）" if search_query else ""))
+
+            if not notes:
+                st.markdown("---")
+                if search_query or api_source_type:
+                    st.info(f"📭 没有找到匹配的笔记")
+                else:
+                    st.info("📭 还没有笔记，去生成第一篇吧！")
+                    col_empty, _ = st.columns([1, 3])
+                    with col_empty:
+                        if st.button("🚀 去生成笔记", type="primary", use_container_width=True):
+                            st.rerun()
+
+            for note in notes:
+                with st.container():
+                    st.markdown("---")
+                    col_main, col_action = st.columns([8, 1])
+                    with col_main:
+                        note_title = note.get("title", "无标题")
+                        note_summary = note.get("summary", "")
+                        note_tags = note.get("tags", [])
+                        note_date = (note.get("created_at") or "")[:10]
+                        note_words = note.get("word_count", 0)
+                        note_source = note.get("source_type", "")
+                        source_label = "🤖 AI生成" if note_source == "generated" else "📤 上传"
+
+                        st.markdown(f"### {note_title}")
+                        if note_summary:
+                            st.markdown(note_summary[:150] + ("..." if len(note_summary) > 150 else ""))
+
+                        tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in note_tags])
+                        st.markdown(
+                            f'{tag_html} <span class="meta-text">| {source_label} | 📅 {note_date} | 📝 {note_words} 字</span>',
+                            unsafe_allow_html=True,
+                        )
+
+                    with col_action:
+                        if st.button("📖 查看", key=f"view_{note['id']}"):
+                            st.session_state.notes_page_view = "detail"
+                            st.session_state.selected_note_id = note["id"]
+                            st.rerun()
+
+            # 分页
+            if total > 20:
+                st.markdown("---")
+                col_prev, col_spacer, col_next = st.columns([1, 3, 1])
+                with col_prev:
+                    if offset > 0:
+                        if st.button("← 上一页"):
+                            st.session_state.notes_page_offset = max(0, offset - 20)
+                            st.rerun()
+                with col_next:
+                    if offset + 20 < total:
+                        if st.button("下一页 →"):
+                            st.session_state.notes_page_offset = offset + 20
+                            st.rerun()
+                total_pages = (total + 19) // 20
+                current_page = offset // 20 + 1
+                st.caption(f"第 {current_page}/{total_pages} 页")
+
+
+# ===================================================================
+# 📁 知识库管理（NEW）
+# ===================================================================
+elif page == "📁 知识库管理":
+    st.header("📁 知识库管理")
+    st.markdown("上传学习文档到知识库，自动建立向量索引供 RAG 检索")
+
+    # 统计卡片
+    stats_resp = api_get("/rag/stats")
+    if stats_resp and stats_resp.status_code == 200:
+        stats = stats_resp.json().get("data", {})
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("📄 总文档", stats.get("total_notes", 0))
+        with col2:
+            st.metric("🤖 AI生成", stats.get("generated_notes", 0))
+        with col3:
+            st.metric("📤 上传文档", stats.get("uploaded_notes", 0))
+        with col4:
+            st.metric("🧩 向量块", stats.get("total_chunks", 0))
+
+    st.markdown("---")
+
+    # 上传区域
+    st.subheader("📤 上传文档")
+    st.caption("支持 PDF、Markdown (.md)、纯文本 (.txt) 文件")
+
+    col_upload, col_title = st.columns([2, 1])
+    with col_upload:
+        uploaded_file = st.file_uploader(
+            "选择文件",
+            type=["pdf", "md", "txt"],
+            label_visibility="collapsed",
+            key="kb_file_uploader",
+        )
+    with col_title:
+        custom_title = st.text_input(
+            "自定义标题（可选）",
+            placeholder="留空则使用文件名",
+            label_visibility="collapsed",
+            key="kb_custom_title",
+        )
+
+    if uploaded_file:
+        col_info, col_action = st.columns([3, 1])
+        with col_info:
+            st.markdown(f"**已选择:** {uploaded_file.name} ({uploaded_file.size / 1024:.1f} KB)")
+        with col_action:
+            if st.button("🚀 上传并入库", type="primary", use_container_width=True):
+                with st.spinner("正在解析文件并建立索引..."):
+                    try:
+                        files_data = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                        form_data = {}
+                        if custom_title:
+                            form_data["title"] = custom_title
+
+                        resp = api_post("/rag/upload", json_data=form_data, files=files_data)
+                        if resp and resp.status_code == 200:
+                            result = resp.json().get("data", {})
+                            st.success(f"✅ 文档 '{result.get('title', '')}' 已入库（{result.get('word_count', 0)} 字）")
+                            st.cache_data.clear()
+                            st.rerun()
+                        elif resp:
+                            st.error(f"上传失败: {resp.json().get('detail', resp.text)}")
+                    except Exception as e:
+                        st.error(f"上传异常: {str(e)}")
+
+    st.markdown("---")
+
+    # 已上传文档列表
+    st.subheader("📋 已上传文档")
+
+    offset = st.session_state.kb_page_offset
+    resp = api_get("/rag/sources", {"limit": 20, "offset": offset})
+    if resp and resp.status_code == 200:
+        data = resp.json()
+        sources = data.get("data", [])
+        pagination = data.get("pagination", {})
+        total = pagination.get("total", 0)
+
+        if not sources:
+            st.info("📭 还没有上传文档，上传你的第一个学习资料吧！")
+
+        for source in sources:
+            with st.container():
+                st.markdown("---")
+                col_main, col_actions = st.columns([7, 2])
+                with col_main:
+                    st.markdown(f"#### 📄 {source.get('title', '无标题')}")
+                    src_date = (source.get("created_at") or "")[:10]
+                    st.caption(f"📝 {source.get('word_count', 0)} 字 | 📅 {src_date}")
+                with col_actions:
+                    col_view, col_del = st.columns(2)
+                    with col_view:
+                        if st.button("📖 查看", key=f"kb_view_{source['id']}"):
+                            st.session_state.notes_page_view = "detail"
+                            st.session_state.selected_note_id = source["id"]
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️ 删除", key=f"kb_del_{source['id']}"):
                             try:
-                                del_resp = requests.delete(f"{API_BASE}/notes/{note_id}", timeout=10)
+                                del_resp = requests.delete(f"{API_BASE}/rag/sources/{source['id']}", timeout=10)
                                 if del_resp.status_code == 200:
-                                    st.success("笔记已删除")
-                                    st.session_state.notes_page_view = "list"
-                                    st.session_state.selected_note_id = None
-                                    st.session_state.pop("confirm_delete", None)
+                                    st.success("已删除")
                                     st.rerun()
                                 else:
                                     st.error(f"删除失败: {del_resp.status_code}")
                             except Exception as e:
                                 st.error(f"删除失败: {str(e)}")
-                    with col_no:
-                        if st.button("❌ 取消"):
-                            st.session_state.pop("confirm_delete", None)
-                            st.rerun()
 
-            else:
-                st.error(f"笔记不存在 (HTTP {resp.status_code})")
-                if st.button("← 返回列表"):
-                    st.session_state.notes_page_view = "list"
-                    st.session_state.selected_note_id = None
-                    st.rerun()
-        except requests.exceptions.ConnectionError:
-            st.error("无法连接到后端，请先启动 FastAPI 服务")
-        except Exception as e:
-            st.error(f"加载失败: {str(e)}")
-
-    # --- 笔记列表视图 ---
-    else:
-        st.header("📚 我的笔记")
-        st.markdown("已保存的学习笔记，点击查看详情")
-
-        try:
-            offset = st.session_state.notes_page_offset
-            resp = requests.get(
-                f"{API_BASE}/notes",
-                params={"limit": 20, "offset": offset},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                notes = data.get("data", [])
-                pagination = data.get("pagination", {})
-                total = pagination.get("total", 0)
-
-                # 统计信息
-                st.caption(f"共 {total} 篇笔记")
-
-                if not notes:
-                    # 空状态
-                    st.markdown("---")
-                    st.info("📭 还没有笔记，去生成第一篇吧！")
-                    if st.button("🚀 生成笔记", type="primary"):
-                        st.rerun()  # 用户需手动切换页面
-
-                # 笔记卡片列表
-                for note in notes:
-                    with st.container():
-                        st.markdown("---")
-                        col_main, col_action = st.columns([8, 1])
-                        with col_main:
-                            # 可点击的标题
-                            note_title = note.get("title", "无标题")
-                            note_summary = note.get("summary", "")
-                            note_tags = note.get("tags", [])
-                            note_date = (note.get("created_at") or "")[:10]
-                            note_words = note.get("word_count", 0)
-
-                            st.markdown(f"### {note_title}")
-                            if note_summary:
-                                st.markdown(note_summary[:150] + ("..." if len(note_summary) > 150 else ""))
-
-                            # 元信息
-                            tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in note_tags])
-                            st.markdown(
-                                f'{tag_html} <span class="meta-text">| 📅 {note_date} | 📝 {note_words} 字</span>',
-                                unsafe_allow_html=True,
-                            )
-
-                        with col_action:
-                            if st.button("📖 查看", key=f"view_{note['id']}"):
-                                st.session_state.notes_page_view = "detail"
-                                st.session_state.selected_note_id = note["id"]
-                                st.rerun()
-
-                # 分页控件
-                if total > 20:
-                    st.markdown("---")
-                    col_prev, col_spacer, col_next = st.columns([1, 3, 1])
-                    with col_prev:
-                        if offset > 0:
-                            if st.button("← 上一页"):
-                                st.session_state.notes_page_offset = max(0, offset - 20)
-                                st.rerun()
-                    with col_next:
-                        if offset + 20 < total:
-                            if st.button("下一页 →"):
-                                st.session_state.notes_page_offset = offset + 20
-                                st.rerun()
-                    total_pages = (total + 19) // 20
-                    current_page = offset // 20 + 1
-                    st.caption(f"第 {current_page}/{total_pages} 页")
-
-            else:
-                st.error(f"获取笔记列表失败: {resp.status_code}")
-        except requests.exceptions.ConnectionError:
-            st.error("无法连接到后端，请先启动 FastAPI 服务")
-        except Exception as e:
-            st.error(f"加载失败: {str(e)}")
+        # 分页
+        if total > 20:
+            st.markdown("---")
+            col_prev, _, col_next = st.columns([1, 3, 1])
+            with col_prev:
+                if offset > 0:
+                    if st.button("← 上一页", key="kb_prev"):
+                        st.session_state.kb_page_offset = max(0, offset - 20)
+                        st.rerun()
+            with col_next:
+                if offset + 20 < total:
+                    if st.button("下一页 →", key="kb_next"):
+                        st.session_state.kb_page_offset = offset + 20
+                        st.rerun()
 
 
 # ===================================================================
@@ -381,52 +596,42 @@ elif page == "🎯 出题练习":
 
     if st.button("🎯 生成题目", type="primary", disabled=not quiz_topic):
         with st.spinner("AI 正在出题..."):
-            try:
-                resp = requests.post(
-                    f"{API_BASE}/quiz/generate",
-                    json={
-                        "topic": quiz_topic,
-                        "types": types,
-                        "difficulty": difficulty,
-                        "count": count,
-                    },
-                    timeout=120,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    quiz = data.get("data", {})
-                    questions = quiz.get("questions", [])
+            resp = api_post("/quiz/generate", {
+                "topic": quiz_topic,
+                "types": types,
+                "difficulty": difficulty,
+                "count": count,
+            })
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                quiz = data.get("data", {})
+                questions = quiz.get("questions", [])
 
-                    st.markdown("---")
-                    st.markdown(f"## 🎯 {quiz.get('topic', '')}")
+                st.markdown("---")
+                st.markdown(f"## 🎯 {quiz.get('topic', quiz_topic)}")
+                st.caption(f"Quiz ID: {quiz.get('quiz_id', '')}")
 
-                    # 显示题目
-                    for i, q in enumerate(questions):
-                        with st.container():
-                            st.markdown(f"### 第 {i+1} 题")
-                            st.markdown(f"**{q.get('question', '')}**")
-                            st.caption(f"类型: {q.get('type')} | 难度: {q.get('difficulty')}")
+                for i, q in enumerate(questions):
+                    with st.container():
+                        st.markdown(f"### 第 {i+1} 题")
+                        st.markdown(f"**{q.get('question', '')}**")
+                        st.caption(f"类型: {q.get('type')} | 难度: {q.get('difficulty')}")
 
-                            if q.get("type") == "choice" and q.get("options"):
-                                user_answer = st.radio(
-                                    f"q_{q['id']}",
-                                    [f"{o['key']}. {o['text']}" for o in q["options"]],
-                                    key=f"answer_{q['id']}",
-                                    index=None,
-                                )
-                                # 显示正确答案
-                                with st.expander("查看答案"):
-                                    st.success(f"正确答案: **{q.get('answer')}**")
-                                    if q.get("explanation"):
-                                        st.info(q["explanation"])
+                        if q.get("type") == "choice" and q.get("options"):
+                            st.radio(
+                                f"q_{q['id']}",
+                                [f"{o['key']}. {o['text']}" for o in q["options"]],
+                                key=f"answer_{q['id']}",
+                                index=None,
+                            )
+                            with st.expander("查看答案"):
+                                st.success(f"正确答案: **{q.get('answer')}**")
+                                if q.get("explanation"):
+                                    st.info(q["explanation"])
 
-                            st.markdown("---")
-                else:
-                    st.error(f"请求失败: {resp.status_code}")
-            except requests.exceptions.ConnectionError:
-                st.error("无法连接到后端，请先启动 FastAPI 服务")
-            except Exception as e:
-                st.error(f"错误: {str(e)}")
+                        st.markdown("---")
+            elif resp:
+                st.error(f"请求失败: {resp.status_code}")
 
 
 # ===================================================================
@@ -434,47 +639,145 @@ elif page == "🎯 出题练习":
 # ===================================================================
 elif page == "🔍 知识问答":
     st.header("🔍 知识问答")
-    st.markdown("向你的知识库提问，AI 会基于你的笔记来回答")
+    st.markdown("向你的知识库提问，AI 会基于你的笔记来回答（支持 Multi-Query + Rerank）")
 
     query = st.text_input("你的问题", placeholder="例如：Verification 和 Validation 的区别是什么？")
 
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col2:
         top_k = st.slider("检索数量", 1, 20, 5)
+    with col3:
+        st.caption("Multi-Query + Rerank 自动启用")
 
     if st.button("🔍 提问", type="primary", disabled=not query):
         with st.spinner("正在检索知识库..."):
-            try:
-                resp = requests.post(
-                    f"{API_BASE}/rag/ask",
-                    json={"query": query, "top_k": top_k},
-                    timeout=120,
+            resp = api_post("/rag/ask", {"query": query, "top_k": top_k})
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                rag_data = data.get("data", {})
+                meta = data.get("metadata", {})
+
+                st.markdown("---")
+                st.markdown("### 📖 回答")
+                st.markdown(rag_data.get("answer", "无法获取回答"))
+
+                # 检索增强信息
+                expansions = meta.get("query_expansions", 0)
+                reranked = meta.get("reranked", False)
+                if expansions or reranked:
+                    enhancements = []
+                    if expansions:
+                        enhancements.append(f"🔀 查询扩展: +{expansions} 变体")
+                    if reranked:
+                        enhancements.append("📊 Rerank 已启用")
+                    st.caption(" | ".join(enhancements))
+
+                sources = rag_data.get("sources", [])
+                if sources:
+                    with st.expander(f"📚 参考来源 ({len(sources)} 条)"):
+                        for s in sources:
+                            st.markdown(f"**{s.get('title', '未知')}** (相关度: {s.get('score', 0):.2f})")
+                            st.markdown(f"> {s.get('excerpt', '')[:200]}...")
+                            st.markdown("---")
+
+                st.caption(
+                    f"检索到 {meta.get('retrieved_chunks', 0)} 个文档块 | "
+                    f"置信度: {rag_data.get('confidence', 0)}"
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    rag_data = data.get("data", {})
+            elif resp:
+                st.error(f"请求失败: {resp.status_code}")
 
-                    st.markdown("---")
-                    st.markdown("### 📖 回答")
-                    st.markdown(rag_data.get("answer", "无法获取回答"))
 
-                    # 来源
-                    sources = rag_data.get("sources", [])
-                    if sources:
-                        with st.expander(f"📚 参考来源 ({len(sources)} 条)"):
-                            for s in sources:
-                                st.markdown(f"**{s.get('title', '未知')}** (相关度: {s.get('relevance_score', 0):.2f})")
-                                st.markdown(f"> {s.get('excerpt', '')[:200]}...")
-                                st.markdown("---")
+# ===================================================================
+# 📋 错题本（NEW）
+# ===================================================================
+elif page == "📋 错题本":
+    st.header("📋 错题本")
+    st.markdown("追踪错题，发现薄弱点，针对性复习")
 
-                    # 元信息
-                    st.caption(f"检索到 {data.get('metadata', {}).get('retrieved_chunks', 0)} 个文档块 | 置信度: {rag_data.get('confidence', 0)}")
-                else:
-                    st.error(f"请求失败: {resp.status_code}")
-            except requests.exceptions.ConnectionError:
-                st.error("无法连接到后端，请先启动 FastAPI 服务")
-            except Exception as e:
-                st.error(f"错误: {str(e)}")
+    # 加载错题数据
+    resp = api_get("/quiz/errors/list", {"limit": 100})
+    if resp and resp.status_code == 200:
+        data = resp.json()
+        errors = data.get("data", [])
+        stats = data.get("stats", {})
+        total = stats.get("total", 0)
+        resolved = stats.get("resolved", 0)
+        unresolved = stats.get("unresolved", 0)
+
+        # 统计卡片
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📊 总错题", total)
+        with col2:
+            st.metric("❌ 未解决", unresolved)
+        with col3:
+            st.metric("✅ 已掌握", resolved)
+
+        if not errors:
+            st.markdown("---")
+            st.success("🎉 做得很棒！目前没有错题记录。")
+            st.markdown("去 [🎯 出题练习] 页面做题，错题会自动收录到这里。")
+
+        else:
+            # 按知识点分组
+            from collections import defaultdict
+            by_kp = defaultdict(list)
+            for e in errors:
+                kp = e.get("knowledge_point", "未分类")
+                by_kp[kp].append(e)
+
+            st.markdown("---")
+
+            # 过滤选项
+            show_filter = st.radio(
+                "显示",
+                ["全部", "未解决", "已掌握"],
+                horizontal=True,
+                key="error_filter",
+            )
+
+            for kp, items in by_kp.items():
+                filtered = items
+                if show_filter == "未解决":
+                    filtered = [e for e in items if not e.get("is_resolved")]
+                elif show_filter == "已掌握":
+                    filtered = [e for e in items if e.get("is_resolved")]
+
+                if not filtered:
+                    continue
+
+                unresolved_count = sum(1 for e in items if not e.get("is_resolved"))
+                with st.expander(
+                    f"📌 {kp}（{len(items)} 题，{unresolved_count} 未解决）",
+                    expanded=(unresolved_count > 0),
+                ):
+                    for e in filtered:
+                        is_resolved = e.get("is_resolved", False)
+                        error_class = "error-item resolved" if is_resolved else "error-item"
+                        status_badge = "✅ 已掌握" if is_resolved else "❌ 待复习"
+
+                        st.markdown(f"""
+                        <div class="{error_class}">
+                            <strong>{status_badge}</strong> | 类型: {e.get('error_type', '未知')} | 复习: {e.get('reviewed_count', 0)} 次<br/>
+                            <span style="color:#ef4444;">✗ 你的答案: {e.get('user_answer', '')}</span><br/>
+                            <span style="color:#22c55e;">✓ 正确答案: {e.get('correct_answer', '')}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        if not is_resolved:
+                            if st.button("✅ 我已掌握", key=f"resolve_{e['id']}"):
+                                try:
+                                    put_resp = requests.put(
+                                        f"{API_BASE}/quiz/errors/{e['id']}/resolve",
+                                        json={"is_resolved": True},
+                                        timeout=10,
+                                    )
+                                    if put_resp.status_code == 200:
+                                        st.success("已标记为掌握！")
+                                        st.rerun()
+                                except Exception as ex:
+                                    st.error(f"操作失败: {ex}")
 
 
 # ===================================================================
@@ -483,34 +786,50 @@ elif page == "🔍 知识问答":
 elif page == "📊 系统信息":
     st.header("📊 系统信息")
 
-    try:
-        resp = requests.get("http://127.0.0.1:8000/", timeout=2)
-        if resp.status_code == 200:
-            data = resp.json()
-            st.json(data)
-    except Exception:
-        st.warning("后端未启动，无法获取系统信息")
+    backend = check_backend()
+    if backend:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("LLM Providers", ", ".join(backend.get("llm_providers", [])) or "无")
+        with col2:
+            st.metric("Agents", backend.get("agents", 0))
+
+        # 知识库统计
+        stats_resp = api_get("/rag/stats")
+        if stats_resp and stats_resp.status_code == 200:
+            stats = stats_resp.json().get("data", {})
+            st.markdown("---")
+            st.subheader("📊 知识库统计")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("总笔记", stats.get("total_notes", 0))
+            with col2:
+                st.metric("AI生成", stats.get("generated_notes", 0))
+            with col3:
+                st.metric("上传文档", stats.get("uploaded_notes", 0))
+            with col4:
+                st.metric("向量块", stats.get("total_chunks", 0))
 
     st.markdown("---")
     st.markdown("### 📂 项目文件结构")
     st.code("""
-ai-study-agent/
+LearnLoop-AI/
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/        # API 路由
+│   │   ├── api/v1/        # API 路由（notes, quiz, rag, schedule）
 │   │   ├── core/           # 核心（Orchestrator, Config, Agent基类）
 │   │   ├── agents/         # 6个专业Agent
-│   │   ├── services/       # 业务服务层（持久化等）
+│   │   ├── services/       # 业务服务层（NoteService, FileService）
 │   │   ├── llm/            # LLM抽象层（DeepSeek, OpenAI）
-│   │   ├── db/             # 数据库（SQL + VectorDB）
-│   │   └── utils/          # 工具（Chunking, Schemas）
+│   │   ├── db/             # 数据库（SQLAlchemy + ChromaDB）
+│   │   └── utils/          # 工具（Chunking, QueryExpansion, Reranker）
 │   ├── tests/
 │   └── requirements.txt
 ├── frontend/
-│   └── streamlit_app.py    # 前端界面
+│   └── streamlit_app.py    # 前端 7 页面
+├── data/                    # 数据目录
 ├── .env.example
-├── 需求分析.md
-└── 知识讲解.md
+└── README.md
     """)
 
     st.markdown("---")
@@ -530,4 +849,16 @@ python -m app.main
 # 4. 启动前端（新终端）
 cd frontend
 streamlit run streamlit_app.py
+    """)
+
+    st.markdown("---")
+    st.markdown("### 🔧 v0.3 新增功能")
+    st.markdown("""
+    - ✅ 文件上传入库（PDF/MD/TXT 解析 → Chunk → Embed → ChromaDB）
+    - ✅ Multi-Query 查询扩展（自动生成多个检索角度）
+    - ✅ Rerank 重排序（LLM 相关性打分精排）
+    - ✅ 知识库管理页面（上传 + 列表 + 删除）
+    - ✅ 错题本页面（按知识点分组 + 已掌握标记）
+    - ✅ 笔记搜索/过滤（标题内容模糊搜索 + 来源过滤）
+    - ✅ Quiz 自动入库 + 错题自动记录
     """)

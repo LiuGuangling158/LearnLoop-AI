@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     chunk_overlap: int = 100
     retrieval_top_k: int = 10
     rerank_top_k: int = 5
+    # Multi-Query 扩展
+    query_expansion_enabled: bool = True
+    query_expansion_count: int = 3  # 生成的变体查询数量
+    # Rerank
+    rerank_enabled: bool = True
+    rerank_max_input_chunks: int = 15  # 参与重排的最大 chunk 数
+    rerank_chunk_truncate_chars: int = 500  # 重排时每个 chunk 截断字符数
 
     # --- 模型路由规则 ---
     # 简单任务用便宜的模型，复杂任务用强模型

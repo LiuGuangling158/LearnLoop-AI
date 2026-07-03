@@ -97,10 +97,35 @@ async def delete_note(note_id: str):
     """
     删除笔记（SQLite + ChromaDB 同步清除）
     """
-    deleted = note_service.delete_note(note_id)
+    deleted = await note_service.delete_note(note_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"笔记 {note_id} 不存在或删除失败")
     return {
         "success": True,
         "data": {"deleted_id": note_id},
+    }
+
+
+@router.get("/search")
+async def search_notes(
+    query: str = "",
+    source_type: str = None,
+    user_id: str = "default",
+    limit: int = 20,
+    offset: int = 0,
+):
+    """
+    搜索笔记（标题/内容模糊匹配 + 来源类型过滤）
+    """
+    notes, total = note_service.search_notes(
+        query=query,
+        source_type=source_type,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "success": True,
+        "data": notes,
+        "pagination": {"limit": limit, "offset": offset, "total": total},
     }

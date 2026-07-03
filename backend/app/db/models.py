@@ -101,6 +101,21 @@ class ErrorLog(Base):
     is_resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "question_id": self.question_id,
+            "quiz_id": self.quiz_id,
+            "user_answer": self.user_answer,
+            "correct_answer": self.correct_answer,
+            "error_type": self.error_type,
+            "knowledge_point": self.knowledge_point,
+            "reviewed_count": self.reviewed_count,
+            "is_resolved": self.is_resolved,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
 
 # ========== 学习计划表 ==========
 class LearningPlan(Base):

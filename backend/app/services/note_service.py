@@ -133,7 +133,7 @@ class NoteService:
 
     # ========== 删除 ==========
 
-    def delete_note(self, note_id: str) -> bool:
+    async def delete_note(self, note_id: str) -> bool:
         """删除笔记（SQLite + ChromaDB 同步清除）"""
         session = db_manager.get_session()
         try:
@@ -144,9 +144,7 @@ class NoteService:
             # 删除 ChromaDB 中的向量数据
             if note.embedding_id:
                 try:
-                    # 通过 note_id 过滤删除
-                    import asyncio
-                    asyncio.create_task(vector_store.delete_by_note(note_id))
+                    await vector_store.delete_by_note(note_id)
                 except Exception as e:
                     print(f"[WARN] ChromaDB 删除失败: {e}")
 
@@ -156,6 +154,42 @@ class NoteService:
         except Exception:
             session.rollback()
             return False
+        finally:
+            session.close()
+
+    # ========== 搜索 ==========
+
+    def search_notes(
+        self,
+        query: str = "",
+        source_type: str = None,
+        user_id: str = "default",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """搜索笔记（标题/内容模糊匹配）+ 来源类型过滤"""
+        session = db_manager.get_session()
+        try:
+            q = session.query(Note).filter(Note.user_id == user_id)
+
+            if source_type:
+                q = q.filter(Note.source_type == source_type)
+
+            if query:
+                search_term = f"%{query}%"
+                q = q.filter(
+                    (Note.title.like(search_term)) |
+                    (Note.content_md.like(search_term))
+                )
+
+            total = q.count()
+            notes = (
+                q.order_by(Note.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            return [n.to_dict() for n in notes], total
         finally:
             session.close()
 

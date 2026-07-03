@@ -108,7 +108,7 @@ class VectorStore:
                     "content": results["documents"][0][i] if results["documents"] else "",
                     "title": metadata.get("title", ""),
                     "section_path": metadata.get("section_path", ""),
-                    "score": results["distances"][0][i] if results["distances"] else 0.0,
+                    "score": _distance_to_relevance(results["distances"][0][i]) if results["distances"] else 0.0,
                 })
 
         return formatted
@@ -130,6 +130,11 @@ class VectorStore:
             "total_chunks": count,
             "collection_name": self.knowledge_collection.name,
         }
+
+
+def _distance_to_relevance(distance: float) -> float:
+    """将 ChromaDB 距离值转换为相关度分数 (0-1，越高越相关)"""
+    return round(1.0 / (1.0 + abs(distance)), 4)
 
 
 # 全局单例

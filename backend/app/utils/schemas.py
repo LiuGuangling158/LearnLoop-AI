@@ -99,6 +99,49 @@ class RAGResponse(BaseModel):
     confidence: float = 0.0
 
 
+# ========== File Upload ==========
+class FileUploadResponse(BaseModel):
+    note_id: str
+    title: str
+    word_count: int
+    source_type: str = "uploaded"
+
+
+# ========== Error Log ==========
+class ErrorLogItem(BaseModel):
+    id: str
+    question_id: str
+    quiz_id: str = ""
+    user_answer: str
+    correct_answer: str
+    error_type: str = ""
+    knowledge_point: str = ""
+    reviewed_count: int = 0
+    is_resolved: bool = False
+    created_at: str = ""
+
+
+class ErrorLogListResponse(BaseModel):
+    errors: list[ErrorLogItem]
+    total: int
+    resolved_count: int = 0
+    unresolved_count: int = 0
+
+
+class ErrorResolveRequest(BaseModel):
+    is_resolved: bool = True
+
+
+# ========== Knowledge Source ==========
+class KnowledgeSourceItem(BaseModel):
+    id: str
+    title: str
+    word_count: int = 0
+    source_type: str = ""
+    created_at: str = ""
+    tags: list[str] = []
+
+
 # ========== 通用 ==========
 class OrchestratorRequest(BaseModel):
     user_input: str = Field(..., description="用户输入")
