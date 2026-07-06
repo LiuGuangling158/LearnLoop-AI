@@ -22,7 +22,7 @@ from app.agents.retrieval_agent import RetrievalAgent
 from app.agents.scheduler_agent import SchedulerAgent
 from app.db.models import init_db
 from app.db.vector_store import vector_store
-from app.api.v1 import notes, quiz, rag, schedule
+from app.api.v1 import notes, quiz, rag, schedule, memory
 
 
 # ========== 应用生命周期 ==========
@@ -100,6 +100,7 @@ app.include_router(notes.router, prefix="/api/v1")
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(rag.router, prefix="/api/v1")
 app.include_router(schedule.router, prefix="/api/v1")
+app.include_router(memory.router, prefix="/api/v1")
 
 
 # ========== 根路由 ==========

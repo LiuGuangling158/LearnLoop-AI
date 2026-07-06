@@ -1,6 +1,6 @@
 """
-AI Study Agent - Streamlit MVP 前端 v0.3
-纯 Python 写的学习界面，7 页面
+AI Study Agent - Streamlit MVP 前端 v0.4
+纯 Python 写的学习界面，9 页面
 """
 import sys
 import io
@@ -154,10 +154,20 @@ def api_post(path: str, json_data: dict = None, files: dict = None, timeout: int
         return None
 
 
+def api_put(path: str, json_data: dict = None, timeout: int = 10):
+    """封装 PUT 请求，统一错误处理"""
+    try:
+        resp = requests.put(f"{API_BASE}{path}", json=json_data, timeout=timeout)
+        return resp
+    except requests.exceptions.ConnectionError:
+        st.error("❌ 无法连接到后端，请先启动 FastAPI 服务（`cd backend && python -m app.main`）")
+        return None
+
+
 # ========== 侧边栏 ==========
 with st.sidebar:
     st.markdown("## 🧠 LearnLoop-AI")
-    st.markdown("v0.3.0 — 学→练→测→记→复")
+    st.markdown("v0.4.0 — 学→练→测→记→复")
     st.markdown("---")
 
     # 后端状态
@@ -173,13 +183,15 @@ with st.sidebar:
     page = st.radio(
         "选择功能",
         [
+            "📊 学习仪表盘",
             "📝 生成笔记",
             "📚 我的笔记",
             "📁 知识库管理",
             "🎯 出题练习",
             "🔍 知识问答",
+            "📅 复习计划",
             "📋 错题本",
-            "📊 系统信息",
+            "⚙️ 系统信息",
         ],
         label_visibility="collapsed",
     )
@@ -191,13 +203,128 @@ with st.sidebar:
 
 # ========== 主区域标题 ==========
 st.markdown('<p class="main-title">🧠 LearnLoop-AI</p>', unsafe_allow_html=True)
-st.markdown("*AI 驱动的个性化学习助手 — Multi-Agent 系统 v0.3*")
+st.markdown("*AI 驱动的个性化学习助手 — Multi-Agent 系统 v0.4*")
+
+
+# ===================================================================
+# 📊 学习仪表盘（NEW in v0.4）
+# ===================================================================
+if page == "📊 学习仪表盘":
+    st.header("📊 学习仪表盘")
+    st.markdown("学习概览、待复习任务、SM-2 遗忘曲线进度")
+
+    # 加载统计数据
+    stats_resp = api_get("/schedule/stats")
+    daily_resp = api_get("/schedule/daily")
+
+    stats = {}
+    daily_data = {}
+    if stats_resp and stats_resp.status_code == 200:
+        stats = stats_resp.json().get("data", {})
+    if daily_resp and daily_resp.status_code == 200:
+        daily_data = daily_resp.json().get("data", {})
+
+    # --- 统计卡片 ---
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        streak = stats.get("streak_days", 0)
+        st.metric("🔥 连续学习", f"{streak} 天")
+    with col2:
+        due = stats.get("due_count", 0)
+        st.metric("📅 待复习", f"{due} 项", delta=f"{stats.get('overdue_count', 0)} 逾期" if stats.get("overdue_count", 0) > 0 else None)
+    with col3:
+        total_q = stats.get("total_quizzes", 0)
+        st.metric("📝 总做题", f"{total_q} 次")
+    with col4:
+        mastery = stats.get("mastery_rate", 0)
+        st.metric("📈 掌握率", f"{mastery}%")
+
+    st.markdown("---")
+
+    # --- 今日待复习 ---
+    col_title, col_action = st.columns([3, 1])
+    with col_title:
+        st.subheader("📅 今日待复习任务")
+    with col_action:
+        if st.button("🔄 去复习页面", type="primary", use_container_width=True, key="goto_review_from_dash"):
+            st.rerun()
+
+    daily_tasks = daily_data.get("daily_tasks", [])
+    if not daily_tasks:
+        st.success("🎉 今天没有到期的复习任务！")
+        if stats.get("total_kps", 0) == 0:
+            st.info("💡 去生成一篇笔记或做一套题，系统会自动为你创建复习计划。")
+            col_empty, _ = st.columns([1, 3])
+            with col_empty:
+                if st.button("🚀 去生成笔记", type="primary", use_container_width=True, key="goto_note_from_dash"):
+                    st.rerun()
+    else:
+        for task in daily_tasks[:8]:
+            priority = task.get("priority", "low")
+            emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(priority, "⚪")
+            with st.container():
+                st.markdown(
+                    f"**{emoji} {task.get('knowledge_point', '未知')}** | "
+                    f"⏱ {task.get('suggested_duration_min', 10)} 分钟 | "
+                    f"{task.get('reason', '')}",
+                )
+
+        total_time = daily_data.get("total_estimated_time_min", 0)
+        st.caption(f"预计总复习时间: {total_time} 分钟")
+        enc = daily_data.get("encouragement", "")
+        if enc:
+            st.info(f"💬 {enc}")
+
+    st.markdown("---")
+
+    # --- SM-2 知识点进度 ---
+    st.subheader("📊 知识点掌握分布")
+
+    sm2_states_resp = api_get("/schedule/states")
+    if sm2_states_resp and sm2_states_resp.status_code == 200:
+        states = sm2_states_resp.json().get("data", [])
+        if states:
+            for s in states[:10]:
+                kp = s.get("knowledge_point", "未知")
+                ef = s.get("ef", 2.5)
+                reps = s.get("repetitions", 0)
+                interval = s.get("interval_days", 1)
+                err_count = s.get("error_count", 0)
+                next_review = (s.get("next_review_at") or "")[:10]
+
+                # EF 值映射到进度条 (1.3 ~ 3.0 → 0% ~ 100%)
+                progress = min(1.0, max(0.0, (ef - 1.3) / 1.7))
+
+                col_bar, col_info = st.columns([3, 1])
+                with col_bar:
+                    st.progress(progress, text=f"{kp}")
+                with col_info:
+                    st.caption(f"EF:{ef:.1f} | 间隔:{interval}d | 错{err_count}次")
+        else:
+            st.info("📭 暂无 SM-2 知识点数据。生成笔记或做题后会自动创建。")
+
+    # --- 快捷入口 ---
+    st.markdown("---")
+    st.subheader("⚡ 快捷操作")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button("📝 生成笔记", use_container_width=True, key="quick_note"):
+            st.rerun()
+    with col2:
+        if st.button("🎯 出题练习", use_container_width=True, key="quick_quiz"):
+            st.rerun()
+    with col3:
+        if st.button("📋 查看错题", use_container_width=True, key="quick_errors"):
+            st.rerun()
+    with col4:
+        if st.button("🔍 知识问答", use_container_width=True, key="quick_rag"):
+            st.rerun()
 
 
 # ===================================================================
 # 📝 生成笔记
 # ===================================================================
-if page == "📝 生成笔记":
+elif page == "📝 生成笔记":
     st.header("📝 生成学习笔记")
     st.markdown("输入一个主题，AI 会帮你生成结构化的 Markdown 笔记，并自动保存到知识库")
 
@@ -689,6 +816,189 @@ elif page == "🔍 知识问答":
 
 
 # ===================================================================
+# 📅 复习计划（NEW in v0.4）
+# ===================================================================
+elif page == "📅 复习计划":
+    st.header("📅 复习计划")
+    st.markdown("基于 SM-2 遗忘曲线的智能复习，对知识点评分后系统自动计算下次复习时间")
+
+    # 加载 SM-2 状态
+    states_resp = api_get("/schedule/states")
+    if states_resp and states_resp.status_code == 200:
+        all_states = states_resp.json().get("data", [])
+    else:
+        all_states = []
+
+    # 加载每日任务
+    daily_resp = api_get("/schedule/daily")
+    if daily_resp and daily_resp.status_code == 200:
+        daily_data = daily_resp.json().get("data", {})
+    else:
+        daily_data = {}
+
+    # 分离到期和未到期的
+    due_states = [s for s in all_states if s.get("error_count", 0) > 0 or s.get("repetitions", 0) == 0]
+    not_due = [s for s in all_states if s not in due_states]
+
+    # --- session state 管理 ---
+    if "review_scores" not in st.session_state:
+        st.session_state.review_scores = {}  # {kp: score}
+    if "review_submitted" not in st.session_state:
+        st.session_state.review_submitted = {}  # {kp: result}
+
+    # --- 今日待复习 ---
+    st.subheader("📌 待复习知识点")
+    daily_tasks = daily_data.get("daily_tasks", [])
+
+    if not all_states:
+        st.info("📭 暂无知识点数据。去生成笔记或做题，系统会自动创建复习计划！")
+        col_empty, _ = st.columns([1, 3])
+        with col_empty:
+            if st.button("🚀 去生成笔记", type="primary", use_container_width=True, key="goto_note_from_review"):
+                st.rerun()
+    else:
+        # 优先展示有错题的知识点
+        error_kps = [s for s in all_states if s.get("error_count", 0) > 0]
+        fresh_kps = [s for s in all_states if s.get("error_count", 0) == 0]
+
+        tab1, tab2, tab3 = st.tabs(["🔴 需重点复习", "🟢 正常复习", "📋 全部知识点"])
+
+        with tab1:
+            if not error_kps:
+                st.success("🎉 没有需要重点复习的知识点！")
+            for s in error_kps:
+                kp = s.get("knowledge_point", "未知")
+                ef = s.get("ef", 2.5)
+                interval = s.get("interval_days", 1)
+                reps = s.get("repetitions", 0)
+                err_count = s.get("error_count", 0)
+                next_review = (s.get("next_review_at") or "")[:10]
+
+                with st.container():
+                    st.markdown("---")
+                    st.markdown(f"### 🔴 {kp}")
+                    col_info, col_score = st.columns([2, 1])
+                    with col_info:
+                        st.markdown(f"EF: **{ef:.2f}** | 间隔: **{interval}** 天 | 已复习: **{reps}** 次 | 错题: **{err_count}** 次")
+                        st.caption(f"下次复习: {next_review}")
+                    with col_score:
+                        current_score = st.session_state.review_scores.get(kp)
+                        score_label = f"当前评分: {current_score}" if current_score is not None else "选择评分"
+                        score = st.select_slider(
+                            score_label,
+                            options=[0, 1, 2, 3, 4, 5],
+                            value=current_score,
+                            format_func=lambda x: {0: "0-完全忘记", 1: "1-几乎忘记", 2: "2-勉强回忆", 3: "3-正确回忆", 4: "4-较轻松", 5: "5-非常完美"}[x],
+                            key=f"score_{kp}",
+                        )
+                        st.session_state.review_scores[kp] = score
+
+                    # 评分按钮
+                    if st.button(f"✅ 提交评分: {kp}", type="primary", key=f"submit_review_{kp}"):
+                        score_val = st.session_state.review_scores.get(kp, 3)
+                        review_resp = api_post("/schedule/review", {
+                            "knowledge_point": kp,
+                            "score": score_val,
+                            "user_id": "default",
+                        })
+                        if review_resp and review_resp.status_code == 200:
+                            result_data = review_resp.json().get("data", {})
+                            st.session_state.review_submitted[kp] = result_data
+                            st.rerun()
+                        else:
+                            st.error("评分提交失败，请检查后端连接")
+
+                    # 显示评分结果
+                    submitted = st.session_state.review_submitted.get(kp)
+                    if submitted:
+                        sm2_result = submitted.get("sm2_result", {})
+                        st.success(
+                            f"✅ 评分 {submitted.get('last_score', '?')} → "
+                            f"下次复习: **{submitted.get('next_review_at', '?')[:10]}** "
+                            f"(间隔 {submitted.get('interval_days', '?')} 天, EF={submitted.get('ef', '?')})"
+                        )
+                        if sm2_result:
+                            old_ef = s.get("ef", 2.5)
+                            new_ef = sm2_result.get("ef", old_ef)
+                            ef_delta = new_ef - old_ef
+                            if ef_delta > 0:
+                                st.caption(f"📈 EF 提升: {old_ef:.2f} → {new_ef:.2f} (+{ef_delta:.2f})")
+                            elif ef_delta < 0:
+                                st.caption(f"📉 EF 下降: {old_ef:.2f} → {new_ef:.2f} ({ef_delta:.2f})")
+
+        with tab2:
+            if not fresh_kps:
+                st.info("暂无正常复习的知识点")
+            for s in fresh_kps[:10]:
+                kp = s.get("knowledge_point", "未知")
+                ef = s.get("ef", 2.5)
+                interval = s.get("interval_days", 1)
+                reps = s.get("repetitions", 0)
+                next_review = (s.get("next_review_at") or "")[:10]
+
+                with st.container():
+                    st.markdown("---")
+                    st.markdown(f"### 🟢 {kp}")
+                    col_info, col_score = st.columns([2, 1])
+                    with col_info:
+                        st.markdown(f"EF: **{ef:.2f}** | 间隔: **{interval}** 天 | 已复习: **{reps}** 次")
+                        st.caption(f"下次复习: {next_review}")
+                    with col_score:
+                        score = st.select_slider(
+                            "回忆程度",
+                            options=[0, 1, 2, 3, 4, 5],
+                            format_func=lambda x: {0: "0-完全忘记", 1: "1-几乎忘记", 2: "2-勉强回忆", 3: "3-正确回忆", 4: "4-较轻松", 5: "5-非常完美"}[x],
+                            key=f"score_fresh_{kp}",
+                        )
+                        st.session_state.review_scores[kp] = score
+
+                    if st.button(f"✅ 提交评分", type="primary", key=f"submit_fresh_{kp}"):
+                        score_val = st.session_state.review_scores.get(kp, 3)
+                        review_resp = api_post("/schedule/review", {
+                            "knowledge_point": kp,
+                            "score": score_val,
+                            "user_id": "default",
+                        })
+                        if review_resp and review_resp.status_code == 200:
+                            result_data = review_resp.json().get("data", {})
+                            st.session_state.review_submitted[kp] = result_data
+                            st.rerun()
+                        else:
+                            st.error("评分提交失败")
+
+                    submitted = st.session_state.review_submitted.get(kp)
+                    if submitted:
+                        st.success(
+                            f"✅ 下次复习: **{submitted.get('next_review_at', '?')[:10]}** "
+                            f"(间隔 {submitted.get('interval_days', '?')} 天)"
+                        )
+
+        with tab3:
+            if not all_states:
+                st.info("暂无知识点")
+            else:
+                # 表格展示所有知识点
+                st.caption(f"共 {len(all_states)} 个知识点")
+                for s in all_states:
+                    kp = s.get("knowledge_point", "未知")
+                    ef = s.get("ef", 2.5)
+                    reps = s.get("repetitions", 0)
+                    interval = s.get("interval_days", 1)
+                    err = s.get("error_count", 0)
+                    nr = (s.get("next_review_at") or "")[:10]
+                    progress = min(1.0, max(0.0, (ef - 1.3) / 1.7))
+
+                    st.markdown("---")
+                    col_name, col_bar, col_val = st.columns([2, 3, 1])
+                    with col_name:
+                        st.markdown(f"**{kp}**")
+                    with col_bar:
+                        st.progress(progress)
+                    with col_val:
+                        st.caption(f"EF:{ef:.1f} | 错{err}")
+
+
+# ===================================================================
 # 📋 错题本（NEW）
 # ===================================================================
 elif page == "📋 错题本":
@@ -783,8 +1093,8 @@ elif page == "📋 错题本":
 # ===================================================================
 # 📊 系统信息
 # ===================================================================
-elif page == "📊 系统信息":
-    st.header("📊 系统信息")
+elif page == "⚙️ 系统信息":
+    st.header("⚙️ 系统信息")
 
     backend = check_backend()
     if backend:
@@ -852,6 +1162,16 @@ streamlit run streamlit_app.py
     """)
 
     st.markdown("---")
+    st.markdown("### 🔧 v0.4 新增功能")
+    st.markdown("""
+    - ✅ SM-2 遗忘曲线前端联动（自动创建初始状态 + 复习评分更新）
+    - ✅ 学习仪表盘（统计卡片 + 待复习任务 + 知识点进度）
+    - ✅ 复习计划页面（评分 0-5 + SM-2 间隔计算 + 下次复习日期展示）
+    - ✅ 易混概念对自动检测（错题知识点两两组合创建混淆对）
+    - ✅ Memory API（薄弱点分析 + 混淆对列表 + 学习报告）
+    - ✅ Schedule API 接入真实数据库（每日任务 / 复习评分 / 统计数据）
+    - ✅ SM-2 状态自动创建（笔记生成 + 错题入库时联动）
+    """)
     st.markdown("### 🔧 v0.3 新增功能")
     st.markdown("""
     - ✅ 文件上传入库（PDF/MD/TXT 解析 → Chunk → Embed → ChromaDB）

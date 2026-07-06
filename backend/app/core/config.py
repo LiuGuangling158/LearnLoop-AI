@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # --- 应用 ---
     app_name: str = "AI Study Agent"
-    app_version: str = "0.1.0"
+    app_version: str = "0.4.0"
     debug: bool = True
     log_level: str = "INFO"
     app_host: str = "0.0.0.0"

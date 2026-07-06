@@ -142,6 +142,62 @@ class KnowledgeSourceItem(BaseModel):
     tags: list[str] = []
 
 
+# ========== Schedule ==========
+class ReviewRequest(BaseModel):
+    knowledge_point: str = Field(..., description="知识点名称")
+    score: int = Field(..., ge=0, le=5, description="回忆评分 0-5")
+    user_id: str = Field("default")
+
+
+class PlanRequest(BaseModel):
+    topic: str = Field(..., description="学习主题")
+    goal_description: str = Field("", description="学习目标描述")
+    target_date: Optional[str] = Field(None, description="目标日期 (YYYY-MM-DD)")
+
+
+class SM2StateResponse(BaseModel):
+    id: str
+    knowledge_point: str
+    ef: float = 2.5
+    interval_days: int = 1
+    repetitions: int = 0
+    next_review_at: Optional[str] = None
+    last_score: int = 0
+    error_count: int = 0
+    overdue_days: int = 0
+    priority: str = "low"
+
+
+class DailyTaskItem(BaseModel):
+    type: str = "review"  # review | new_learn
+    knowledge_point: str
+    reason: str = ""
+    priority: str = "low"
+    suggested_duration_min: int = 15
+
+
+class DailyScheduleResponse(BaseModel):
+    date: str
+    daily_tasks: list[dict] = []
+    total_estimated_time_min: int = 0
+    encouragement: str = ""
+
+
+class ConfusionPairResponse(BaseModel):
+    id: str
+    concept_a: str
+    concept_b: str
+    error_count: int = 1
+    last_confused_at: Optional[str] = None
+
+
+class WeakPointsResponse(BaseModel):
+    weak_points: list[dict] = []
+    total_errors: int = 0
+    confusion_pairs: list[dict] = []
+    improvement_suggestions: list[str] = []
+
+
 # ========== 通用 ==========
 class OrchestratorRequest(BaseModel):
     user_input: str = Field(..., description="用户输入")

@@ -47,6 +47,30 @@ async def generate_note(request: NoteGenerateRequest):
         )
         note_data["id"] = saved_note["id"]
         note_data["_persisted"] = True
+
+        # --- v0.4: 自动创建 SM-2 状态 ---
+        try:
+            from ...services.sm2_service import sm2_service
+
+            # 收集知识点：标签 + 标题
+            knowledge_points = list(note_data.get("tags", []))
+            title = note_data.get("title", "")
+            if title and title not in knowledge_points:
+                knowledge_points.append(title)
+
+            for kp in knowledge_points:
+                if kp:
+                    try:
+                        sm2_service.get_or_create_state(kp, "default")
+                    except Exception as e:
+                        print(f"[WARN] SM-2 状态创建失败 ({kp}): {e}")
+
+            if knowledge_points:
+                print(f"[OK] 为 {len(knowledge_points)} 个知识点初始化 SM-2 状态")
+        except Exception as e:
+            print(f"[WARN] SM-2 批量创建失败: {e}")
+        # ---
+
     except Exception as e:
         # 优雅降级：持久化失败仍返回笔记内容
         print(f"[ERROR] 笔记入库失败: {e}")

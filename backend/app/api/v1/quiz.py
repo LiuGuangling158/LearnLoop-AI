@@ -133,6 +133,37 @@ async def submit_quiz(quiz_id: str, request: GradeRequest):
 
         session.commit()
         session.close()
+
+        # --- v0.4: 联动 SM-2 + 混淆对检测 ---
+        try:
+            from ...services.sm2_service import sm2_service
+
+            # 收集错题的知识点（去重）
+            error_kps = []
+            for r in results:
+                if not r.get("is_correct", True):
+                    kp = r.get("knowledge_point", "")
+                    if kp:
+                        error_kps.append(kp)
+                        # 为每个错题知识点创建/更新 SM-2 状态
+                        try:
+                            sm2_service.get_or_create_state(kp, "default")
+                        except Exception as e:
+                            print(f"[WARN] SM-2 状态创建失败 ({kp}): {e}")
+
+            # 检测混淆对（同一批错题中不同知识点两两组合）
+            if len(error_kps) >= 2:
+                try:
+                    confusions = sm2_service.detect_confusions_from_errors(error_kps, "default")
+                    if confusions:
+                        print(f"[OK] 检测到 {len(confusions)} 个混淆对")
+                except Exception as e:
+                    print(f"[WARN] 混淆对检测失败: {e}")
+
+        except Exception as e:
+            print(f"[WARN] SM-2 联动失败: {e}")
+        # ---
+
     except Exception as e:
         print(f"[WARN] 做题记录入库失败: {e}")
 
