@@ -41,6 +41,12 @@ if "error_page_offset" not in st.session_state:
     st.session_state.error_page_offset = 0
 if "confirm_delete" not in st.session_state:
     st.session_state.confirm_delete = None
+if "kb_confirm_batch_delete" not in st.session_state:
+    st.session_state.kb_confirm_batch_delete = False
+if "kb_confirm_clear_all" not in st.session_state:
+    st.session_state.kb_confirm_clear_all = False
+if "kb_delete_mode" not in st.session_state:
+    st.session_state.kb_delete_mode = False  # 批量选择模式
 
 # ========== 样式 ==========
 st.markdown("""
@@ -672,16 +678,29 @@ elif page == "📁 知识库管理":
                             st.session_state.selected_note_id = source["id"]
                             st.rerun()
                     with col_del:
-                        if st.button("🗑️ 删除", key=f"kb_del_{source['id']}"):
-                            try:
-                                del_resp = requests.delete(f"{API_BASE}/rag/sources/{source['id']}", timeout=10)
-                                if del_resp.status_code == 200:
-                                    st.success("已删除")
+                        confirm_key = f"kb_del_confirm_{source['id']}"
+                        if st.session_state.get(confirm_key):
+                            col_y, col_n = st.columns(2)
+                            with col_y:
+                                if st.button("✅", key=f"kb_del_yes_{source['id']}", help="确认删除"):
+                                    try:
+                                        del_resp = requests.delete(f"{API_BASE}/rag/sources/{source['id']}", timeout=10)
+                                        if del_resp.status_code == 200:
+                                            st.session_state.pop(confirm_key, None)
+                                            st.success("已删除")
+                                            st.rerun()
+                                        else:
+                                            st.error(f"删除失败: {del_resp.status_code}")
+                                    except Exception as e:
+                                        st.error(f"删除失败: {str(e)}")
+                            with col_n:
+                                if st.button("❌", key=f"kb_del_no_{source['id']}", help="取消"):
+                                    st.session_state.pop(confirm_key, None)
                                     st.rerun()
-                                else:
-                                    st.error(f"删除失败: {del_resp.status_code}")
-                            except Exception as e:
-                                st.error(f"删除失败: {str(e)}")
+                        else:
+                            if st.button("🗑️", key=f"kb_del_{source['id']}", help="删除此文档"):
+                                st.session_state[confirm_key] = True
+                                st.rerun()
 
         # 分页
         if total > 20:
@@ -697,6 +716,84 @@ elif page == "📁 知识库管理":
                     if st.button("下一页 →", key="kb_next"):
                         st.session_state.kb_page_offset = offset + 20
                         st.rerun()
+
+    # --- 批量删除操作 (v0.4.1) ---
+    st.markdown("---")
+    st.subheader("🗑️ 知识库清理")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if not st.session_state.kb_confirm_batch_delete:
+            if st.button("🗑️ 清空上传文档", type="secondary", use_container_width=True,
+                         disabled=(total == 0),
+                         help="删除所有上传类型的文档（AI 生成的笔记不受影响）"):
+                st.session_state.kb_confirm_batch_delete = True
+                st.rerun()
+        else:
+            st.warning(f"⚠️ 将删除全部 {total} 篇上传文档，不可撤销！")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("✅ 确认清空", type="primary", use_container_width=True, key="kb_confirm_yes"):
+                    with st.spinner("正在删除..."):
+                        del_resp = requests.delete(f"{API_BASE}/rag/sources", timeout=30)
+                        if del_resp and del_resp.status_code == 200:
+                            result = del_resp.json().get("data", {})
+                            st.success(f"已删除 {result.get('deleted_count', 0)} 篇文档")
+                            st.session_state.kb_confirm_batch_delete = False
+                            st.session_state.kb_page_offset = 0
+                            st.rerun()
+                        else:
+                            st.error("删除失败，请检查后端连接")
+            with col_no:
+                if st.button("❌ 取消", use_container_width=True, key="kb_confirm_no"):
+                    st.session_state.kb_confirm_batch_delete = False
+                    st.rerun()
+
+    with col2:
+        if st.button("🧹 清理孤立向量块", type="secondary", use_container_width=True,
+                     help="清除 ChromaDB 中已无对应笔记的残留向量数据"):
+            with st.spinner("正在扫描孤立块..."):
+                clean_resp = requests.delete(f"{API_BASE}/rag/chunks/orphans", timeout=30)
+                if clean_resp and clean_resp.status_code == 200:
+                    result = clean_resp.json().get("data", {})
+                    cleaned = result.get("cleaned", 0)
+                    if cleaned > 0:
+                        st.success(f"已清除 {cleaned} 个孤立向量块")
+                    else:
+                        st.info("没有发现孤立向量块，知识库很干净 ✨")
+                else:
+                    st.error("清理失败，请检查后端连接")
+
+    with col3:
+        if not st.session_state.kb_confirm_clear_all:
+            if st.button("💣 重置整个知识库", type="secondary", use_container_width=True,
+                         disabled=(stats.get("total_notes", 0) == 0),
+                         help="删除所有笔记（含 AI 生成的）和全部向量数据"):
+                st.session_state.kb_confirm_clear_all = True
+                st.rerun()
+        else:
+            st.error("💀 将删除所有笔记和向量数据，完全不可撤销！")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("✅ 确认重置", type="primary", use_container_width=True, key="kb_clearall_yes"):
+                    with st.spinner("正在清空整个知识库..."):
+                        clear_resp = requests.delete(
+                            f"{API_BASE}/rag/clear-all?confirm=CONFIRM", timeout=30
+                        )
+                        if clear_resp and clear_resp.status_code == 200:
+                            result = clear_resp.json().get("data", {})
+                            st.success(f"知识库已重置（删除 {result.get('deleted_notes', 0)} 篇笔记，{result.get('deleted_chunks', 0)} 个向量块）")
+                            st.session_state.kb_confirm_clear_all = False
+                            st.session_state.kb_page_offset = 0
+                            st.rerun()
+                        else:
+                            detail = clear_resp.json().get("detail", "未知错误") if clear_resp else "无响应"
+                            st.error(f"重置失败: {detail}")
+            with col_no:
+                if st.button("❌ 取消", key="kb_clearall_no"):
+                    st.session_state.kb_confirm_clear_all = False
+                    st.rerun()
 
 
 # ===================================================================

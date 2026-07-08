@@ -121,6 +121,17 @@ class VectorStore:
         if results["ids"]:
             self.knowledge_collection.delete(ids=results["ids"])
 
+    # ========== 清空 ==========
+
+    async def delete_all(self):
+        """清空 Collection 中所有文档块"""
+        count = self.knowledge_collection.count()
+        if count > 0:
+            all_ids = self.knowledge_collection.get()["ids"]
+            if all_ids:
+                self.knowledge_collection.delete(ids=all_ids)
+        return count
+
     # ========== 统计 ==========
 
     def collection_stats(self) -> dict:
