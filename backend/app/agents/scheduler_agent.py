@@ -3,7 +3,7 @@ Scheduler Agent - 学习规划器
 基于 SM-2 算法生成每日学习任务
 """
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from ..core.agent_base import BaseAgent, AgentResult, AgentContext
 
 SCHEDULER_SYSTEM_PROMPT = """你是一位学习规划师，擅长制定个性化复习计划。
@@ -146,10 +146,29 @@ class SchedulerAgent(BaseAgent):
             tasks.append({
                 "type": "review",
                 "knowledge_point": item.get("knowledge_point", ""),
-                "reason": f"间隔 {item.get('interval', 1)} 天需复习，已错 {error_count} 次",
+                "reason": f"间隔 {item.get('interval_days', 1)} 天需复习，已错 {error_count} 次",
                 "priority": priority,
                 "suggested_duration_min": 15 if priority == "high" else 10,
             })
+
+        # 对未解决错题但不在 SM-2 到期列表中的知识点，生成额外复习建议
+        if error_logs:
+            sm2_kps = {item.get("knowledge_point", "") for item in due_items}
+            unresolved_kp_counts = {}
+            for e in error_logs:
+                kp = e.get("knowledge_point", "")
+                if kp and kp not in sm2_kps:
+                    unresolved_kp_counts[kp] = unresolved_kp_counts.get(kp, 0) + 1
+
+            for kp, count in sorted(unresolved_kp_counts.items(), key=lambda x: x[1], reverse=True)[:3]:
+                if count >= 2:
+                    tasks.append({
+                        "type": "review",
+                        "knowledge_point": kp,
+                        "reason": f"有 {count} 道错题未解决，建议重新复习",
+                        "priority": "medium",
+                        "suggested_duration_min": 15,
+                    })
 
         result = {
             "date": today,

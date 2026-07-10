@@ -137,8 +137,6 @@ async def get_stats():
     """
     知识库统计信息
     """
-    import asyncio
-
     # ChromaDB 统计
     chroma_stats = vector_store.collection_stats()
 

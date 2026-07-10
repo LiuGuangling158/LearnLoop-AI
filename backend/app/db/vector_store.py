@@ -3,7 +3,6 @@ VectorDB 封装 (ChromaDB)
 负责文档 Embedding 存储和语义检索
 """
 import uuid
-from typing import Optional
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from ..core.config import settings

@@ -43,9 +43,10 @@ class MemoryAgent(BaseAgent):
         record: 记录新的错题
         report: 生成学习报告
         """
-        if action == "record" and grading_result:
-            # 从批改结果中提取错题，记录到数据库
-            return await self._record_errors(grading_result)
+        if action == "record":
+            if grading_result:
+                return await self._record_errors(grading_result)
+            return AgentResult(success=False, error="缺少批改结果 (grading_result)")
 
         if action == "analyze":
             return await self._analyze_weak_points(error_logs or [])
@@ -106,6 +107,21 @@ class MemoryAgent(BaseAgent):
             )
             data = json.loads(response.content)
             return AgentResult(success=True, data=data, raw_content=response.content)
+        except json.JSONDecodeError:
+            # LLM 可能把 JSON 包在 markdown 代码块里
+            content = response.content
+            if "```json" in content:
+                try:
+                    json_str = content.split("```json")[1].split("```")[0].strip()
+                    data = json.loads(json_str)
+                    return AgentResult(success=True, data=data, raw_content=response.content)
+                except Exception:
+                    pass
+            return AgentResult(
+                success=True,
+                data={"raw": response.content, "message": "LLM 返回非标准 JSON，已保留原始内容"},
+                raw_content=response.content,
+            )
         except Exception as e:
             return AgentResult(success=False, error=str(e))
 
@@ -133,5 +149,19 @@ class MemoryAgent(BaseAgent):
             )
             data = json.loads(response.content)
             return AgentResult(success=True, data=data, raw_content=response.content)
+        except json.JSONDecodeError:
+            content = response.content
+            if "```json" in content:
+                try:
+                    json_str = content.split("```json")[1].split("```")[0].strip()
+                    data = json.loads(json_str)
+                    return AgentResult(success=True, data=data, raw_content=response.content)
+                except Exception:
+                    pass
+            return AgentResult(
+                success=True,
+                data={"raw": response.content, "message": "LLM 返回非标准 JSON，已保留原始内容"},
+                raw_content=response.content,
+            )
         except Exception as e:
             return AgentResult(success=False, error=str(e))

@@ -52,12 +52,9 @@ class LLMRouter:
         raise RuntimeError("没有可用的 LLM Provider！请配置 API Key")
 
     def get_for_task(self, complexity: str = "simple") -> LLMProvider:
-        """
-        按任务复杂度路由模型
-        complexity: 'simple' | 'medium' | 'complex'
-        """
-        model_name = settings.get_model_for_task(complexity)
-        return self.get_provider(model_name)
+        """按任务复杂度路由模型"""
+        provider_name = settings.get_model_for_task(complexity)
+        return self.get_provider(provider_name)
 
     async def generate(
         self,

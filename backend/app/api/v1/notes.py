@@ -3,7 +3,6 @@
 """
 import uuid
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 from ...core.orchestrator import orchestrator
 from ...agents.note_agent import NoteAgent
 from ...services.note_service import note_service
@@ -102,6 +101,32 @@ async def list_notes(user_id: str = "default", limit: int = 20, offset: int = 0)
     }
 
 
+@router.get("/search")
+async def search_notes(
+    query: str = "",
+    source_type: str = None,
+    user_id: str = "default",
+    limit: int = 20,
+    offset: int = 0,
+):
+    """
+    搜索笔记（标题/内容模糊匹配 + 来源类型过滤）
+    注意：此路由必须在 /{note_id} 之前，否则 /search 会被 note_id="search" 捕获
+    """
+    notes, total = note_service.search_notes(
+        query=query,
+        source_type=source_type,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "success": True,
+        "data": notes,
+        "pagination": {"limit": limit, "offset": offset, "total": total},
+    }
+
+
 @router.get("/{note_id}")
 async def get_note(note_id: str):
     """
@@ -127,29 +152,4 @@ async def delete_note(note_id: str):
     return {
         "success": True,
         "data": {"deleted_id": note_id},
-    }
-
-
-@router.get("/search")
-async def search_notes(
-    query: str = "",
-    source_type: str = None,
-    user_id: str = "default",
-    limit: int = 20,
-    offset: int = 0,
-):
-    """
-    搜索笔记（标题/内容模糊匹配 + 来源类型过滤）
-    """
-    notes, total = note_service.search_notes(
-        query=query,
-        source_type=source_type,
-        user_id=user_id,
-        limit=limit,
-        offset=offset,
-    )
-    return {
-        "success": True,
-        "data": notes,
-        "pagination": {"limit": limit, "offset": offset, "total": total},
     }

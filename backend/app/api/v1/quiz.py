@@ -42,8 +42,8 @@ async def generate_quiz(request: QuizGenerateRequest):
     quiz_data["quiz_id"] = quiz_id
 
     # 存入数据库
+    session = db_manager.get_session()
     try:
-        session = db_manager.get_session()
         quiz_record = Quiz(
             id=quiz_id,
             user_id="default",
@@ -55,9 +55,11 @@ async def generate_quiz(request: QuizGenerateRequest):
         )
         session.add(quiz_record)
         session.commit()
-        session.close()
     except Exception as e:
+        session.rollback()
         print(f"[WARN] Quiz 入库失败: {e}")
+    finally:
+        session.close()
 
     return {
         "success": True,
@@ -99,9 +101,9 @@ async def submit_quiz(quiz_id: str, request: GradeRequest):
     grade_data["grade_id"] = grade_id
 
     # 存入做题记录 + 错题记录
+    results = grade_data.get("results", [])
+    session = db_manager.get_session()
     try:
-        session = db_manager.get_session()
-
         # 做题记录
         attempt = QuizAttempt(
             id=f"attempt_{uuid.uuid4().hex[:12]}",
@@ -115,7 +117,6 @@ async def submit_quiz(quiz_id: str, request: GradeRequest):
         session.add(attempt)
 
         # 错题入库
-        results = grade_data.get("results", [])
         for r in results:
             if not r.get("is_correct", True):
                 error = ErrorLog(
@@ -132,40 +133,40 @@ async def submit_quiz(quiz_id: str, request: GradeRequest):
                 session.add(error)
 
         session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"[WARN] 做题记录入库失败: {e}")
+    finally:
         session.close()
 
-        # --- v0.4: 联动 SM-2 + 混淆对检测 ---
-        try:
-            from ...services.sm2_service import sm2_service
+    # --- v0.4: 联动 SM-2 + 混淆对检测 ---
+    try:
+        from ...services.sm2_service import sm2_service
 
-            # 收集错题的知识点（去重）
-            error_kps = []
-            for r in results:
-                if not r.get("is_correct", True):
-                    kp = r.get("knowledge_point", "")
-                    if kp:
-                        error_kps.append(kp)
-                        # 为每个错题知识点创建/更新 SM-2 状态
-                        try:
-                            sm2_service.get_or_create_state(kp, "default")
-                        except Exception as e:
-                            print(f"[WARN] SM-2 状态创建失败 ({kp}): {e}")
+        # 收集错题的知识点（去重）
+        error_kps = []
+        for r in results:
+            if not r.get("is_correct", True):
+                kp = r.get("knowledge_point", "")
+                if kp:
+                    error_kps.append(kp)
+                    # 为每个错题知识点创建/更新 SM-2 状态
+                    try:
+                        sm2_service.get_or_create_state(kp, "default")
+                    except Exception as e:
+                        print(f"[WARN] SM-2 状态创建失败 ({kp}): {e}")
 
-            # 检测混淆对（同一批错题中不同知识点两两组合）
-            if len(error_kps) >= 2:
-                try:
-                    confusions = sm2_service.detect_confusions_from_errors(error_kps, "default")
-                    if confusions:
-                        print(f"[OK] 检测到 {len(confusions)} 个混淆对")
-                except Exception as e:
-                    print(f"[WARN] 混淆对检测失败: {e}")
-
-        except Exception as e:
-            print(f"[WARN] SM-2 联动失败: {e}")
-        # ---
+        # 检测混淆对（同一批错题中不同知识点两两组合）
+        if len(error_kps) >= 2:
+            try:
+                confusions = sm2_service.detect_confusions_from_errors(error_kps, "default")
+                if confusions:
+                    print(f"[OK] 检测到 {len(confusions)} 个混淆对")
+            except Exception as e:
+                print(f"[WARN] 混淆对检测失败: {e}")
 
     except Exception as e:
-        print(f"[WARN] 做题记录入库失败: {e}")
+        print(f"[WARN] SM-2 联动失败: {e}")
 
     return {
         "success": True,

@@ -5,9 +5,7 @@ SM-2 Service: 间隔重复状态管理服务
 仿 note_service.py 的单例模式
 """
 import uuid
-from datetime import date, datetime, timedelta
-from typing import Optional
-
+from datetime import datetime, timedelta
 from ..db.session import db_manager
 from ..db.models import SM2State, ConfusionPair, ErrorLog
 from ..agents.scheduler_agent import SM2Calculator
@@ -368,7 +366,7 @@ class SM2Service:
             return 0
 
         # 从今天开始往前数连续天数
-        today = date.today()
+        today = datetime.utcnow().date()
         streak = 0
         check_date = today
 

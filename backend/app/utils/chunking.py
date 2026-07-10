@@ -76,6 +76,8 @@ def split_markdown_by_headers(
 
 def _split_long_section(text: str, chunk_size: int, overlap: int) -> list[str]:
     """将长段落按字符数切分，保留重叠"""
+    if overlap >= chunk_size:
+        raise ValueError(f"overlap ({overlap}) 必须小于 chunk_size ({chunk_size})，否则会导致无限循环")
     chunks = []
     start = 0
     while start < len(text):

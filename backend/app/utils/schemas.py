@@ -1,6 +1,9 @@
 """
 Pydantic 请求/响应 Schema 定义
 用于 FastAPI 的请求验证和 API 文档自动生成
+
+注意：部分 Schema（如 QuizResponse, GradeResult, SM2StateResponse 等）
+暂未在 API 路由中使用，保留作为未来端点或类型文档的预留定义。
 """
 from typing import Optional
 from pydantic import BaseModel, Field

@@ -19,10 +19,8 @@ class FileService:
 
         if ext == ".pdf":
             return await self._parse_pdf(file_content)
-        elif ext in (".md", ".txt"):
+        else:
             return file_content.decode("utf-8", errors="replace")
-
-        return file_content.decode("utf-8", errors="replace")
 
     async def _parse_pdf(self, content: bytes) -> str:
         """使用 PyMuPDF (fitz) 提取 PDF 文本"""

@@ -3,7 +3,6 @@ AI Study Agent - Streamlit MVP 前端 v0.4
 纯 Python 写的学习界面，9 页面
 """
 import sys
-import io
 from pathlib import Path
 
 # 添加 backend 到 path
@@ -11,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 import streamlit as st
 import requests
-import json
 
 # ========== 页面配置 ==========
 st.set_page_config(
@@ -37,16 +35,12 @@ if "notes_source_filter" not in st.session_state:
     st.session_state.notes_source_filter = "全部"
 if "kb_page_offset" not in st.session_state:
     st.session_state.kb_page_offset = 0
-if "error_page_offset" not in st.session_state:
-    st.session_state.error_page_offset = 0
 if "confirm_delete" not in st.session_state:
     st.session_state.confirm_delete = None
 if "kb_confirm_batch_delete" not in st.session_state:
     st.session_state.kb_confirm_batch_delete = False
 if "kb_confirm_clear_all" not in st.session_state:
     st.session_state.kb_confirm_clear_all = False
-if "kb_delete_mode" not in st.session_state:
-    st.session_state.kb_delete_mode = False  # 批量选择模式
 
 # ========== 样式 ==========
 st.markdown("""
@@ -138,8 +132,10 @@ def check_backend():
 
 
 def api_get(path: str, params: dict = None, timeout: int = 10):
-    """封装 GET 请求，统一错误处理"""
+    """封装 GET 请求，统一错误处理。自动过滤 None 值参数"""
     try:
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
         resp = requests.get(f"{API_BASE}{path}", params=params, timeout=timeout)
         return resp
     except requests.exceptions.ConnectionError:
@@ -196,7 +192,7 @@ with st.sidebar:
             "🎯 出题练习",
             "🔍 知识问答",
             "📅 复习计划",
-            "📋 错题本",
+            "📋 记忆中心",
             "⚙️ 系统信息",
         ],
         label_visibility="collapsed",
@@ -440,7 +436,6 @@ elif page == "📚 我的笔记":
                 col_yes, col_no = st.columns([1, 5])
                 with col_yes:
                     if st.button("✅ 确认删除", type="primary"):
-                        del_resp = api_get(f"/notes/{note_id}", timeout=10)  # won't work, need DELETE
                         try:
                             del_resp = requests.delete(f"{API_BASE}/notes/{note_id}", timeout=10)
                             if del_resp.status_code == 200:
@@ -473,23 +468,19 @@ elif page == "📚 我的笔记":
         # 搜索 + 过滤栏
         col_search, col_filter, col_clear = st.columns([4, 2, 1])
         with col_search:
-            search_query = st.text_input(
+            st.text_input(
                 "🔍 搜索笔记",
-                value=st.session_state.notes_search_query,
+                key="notes_search_query",
                 placeholder="输入关键词搜索标题和内容...",
                 label_visibility="collapsed",
             )
-            st.session_state.notes_search_query = search_query
         with col_filter:
-            source_filter = st.selectbox(
+            st.selectbox(
                 "来源",
                 ["全部", "AI生成", "上传的"],
-                index=["全部", "AI生成", "上传的"].index(st.session_state.notes_source_filter)
-                if st.session_state.notes_source_filter in ["全部", "AI生成", "上传的"]
-                else 0,
+                key="notes_source_filter",
                 label_visibility="collapsed",
             )
-            st.session_state.notes_source_filter = source_filter
         with col_clear:
             if st.button("🔄 重置"):
                 st.session_state.notes_search_query = ""
@@ -499,9 +490,12 @@ elif page == "📚 我的笔记":
 
         # 构建 API 参数
         source_type_map = {"全部": None, "AI生成": "generated", "上传的": "uploaded"}
-        api_source_type = source_type_map.get(source_filter)
+        api_source_type = source_type_map.get(
+            st.session_state.notes_source_filter, None
+        )
 
         offset = st.session_state.notes_page_offset
+        search_query = st.session_state.notes_search_query
         if search_query or api_source_type:
             resp = api_get("/notes/search", {
                 "query": search_query,
@@ -1094,16 +1088,68 @@ elif page == "📅 复习计划":
                     with col_val:
                         st.caption(f"EF:{ef:.1f} | 错{err}")
 
+    # --- 学习计划管理 (v0.4.1) ---
+    st.markdown("---")
+    st.subheader("📝 学习计划")
+
+    # 加载现有计划
+    plans_resp = api_get("/schedule/plans")
+    plans = []
+    if plans_resp and plans_resp.status_code == 200:
+        plans = plans_resp.json().get("data", [])
+
+    # 新建计划（折叠）
+    with st.expander("➕ 创建新计划", expanded=(len(plans) == 0)):
+        col_topic, col_date = st.columns([2, 1])
+        with col_topic:
+            plan_topic = st.text_input("学习主题", placeholder="例如：ISTQB 第一章", key="plan_topic")
+        with col_date:
+            plan_date = st.date_input("目标日期", value=None, key="plan_date")
+        plan_goal = st.text_area("学习目标（可选）", placeholder="掌握 ISTQB 基础概念，能通过模拟测试", key="plan_goal")
+
+        if st.button("💾 保存计划", type="primary", disabled=not plan_topic, key="save_plan"):
+            req_data = {
+                "topic": plan_topic,
+                "goal_description": plan_goal,
+                "target_date": plan_date.isoformat() if plan_date else None,
+            }
+            save_resp = api_post("/schedule/plan", req_data)
+            if save_resp and save_resp.status_code == 200:
+                st.success(f"计划 '{plan_topic}' 已创建！")
+                st.rerun()
+            else:
+                st.error("创建失败，请检查后端连接")
+
+    # 已有计划列表
+    if plans:
+        for p in plans:
+            status = p.get("status", "active")
+            status_emoji = {"active": "🟢", "paused": "🟡", "completed": "✅"}.get(status, "⚪")
+            target = p.get("target_date", "")
+            target_display = f" | 🎯 {target}" if target else ""
+
+            col_info, col_status = st.columns([3, 1])
+            with col_info:
+                st.markdown(f"{status_emoji} **{p.get('topic', '无标题')}**{target_display}")
+                if p.get("goal_description"):
+                    st.caption(p["goal_description"][:100])
+            with col_status:
+                st.caption(status)
+            st.markdown("---")
+    else:
+        st.info("还没有学习计划，点击上方创建。")
+
 
 # ===================================================================
-# 📋 错题本（NEW）
+# 📋 记忆中心（v0.4.1 升级：错题本 + 薄弱点 + 易混概念）
 # ===================================================================
-elif page == "📋 错题本":
-    st.header("📋 错题本")
-    st.markdown("追踪错题，发现薄弱点，针对性复习")
+elif page == "📋 记忆中心":
+    st.header("📋 记忆中心")
+    st.markdown("错题追踪、薄弱点分析、易混概念检测")
 
-    # 加载错题数据
+    # 加载错题数据（Tab1 用）
     resp = api_get("/quiz/errors/list", {"limit": 100})
+    errors = []
     if resp and resp.status_code == 200:
         data = resp.json()
         errors = data.get("data", [])
@@ -1111,32 +1157,34 @@ elif page == "📋 错题本":
         total = stats.get("total", 0)
         resolved = stats.get("resolved", 0)
         unresolved = stats.get("unresolved", 0)
+    else:
+        total = resolved = unresolved = 0
 
-        # 统计卡片
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 总错题", total)
-        with col2:
-            st.metric("❌ 未解决", unresolved)
-        with col3:
-            st.metric("✅ 已掌握", resolved)
+    # 统计卡片
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📊 总错题", total)
+    with col2:
+        st.metric("❌ 未解决", unresolved)
+    with col3:
+        st.metric("✅ 已掌握", resolved)
 
+    st.markdown("---")
+
+    tab1, tab2, tab3 = st.tabs(["📋 错题列表", "🎯 薄弱点分析", "🔀 易混概念对"])
+
+    # ===== Tab 1: 错题列表 =====
+    with tab1:
         if not errors:
-            st.markdown("---")
             st.success("🎉 做得很棒！目前没有错题记录。")
             st.markdown("去 [🎯 出题练习] 页面做题，错题会自动收录到这里。")
-
         else:
-            # 按知识点分组
             from collections import defaultdict
             by_kp = defaultdict(list)
             for e in errors:
                 kp = e.get("knowledge_point", "未分类")
                 by_kp[kp].append(e)
 
-            st.markdown("---")
-
-            # 过滤选项
             show_filter = st.radio(
                 "显示",
                 ["全部", "未解决", "已掌握"],
@@ -1185,6 +1233,89 @@ elif page == "📋 错题本":
                                         st.rerun()
                                 except Exception as ex:
                                     st.error(f"操作失败: {ex}")
+
+    # ===== Tab 2: 薄弱点分析 =====
+    with tab2:
+        wp_resp = api_get("/memory/weak-points")
+        if wp_resp and wp_resp.status_code == 200:
+            wp_data = wp_resp.json().get("data", {})
+            weak_points = wp_data.get("weak_points", [])
+            by_type = wp_data.get("by_type", {})
+            suggestions = wp_data.get("improvement_suggestions", [])
+            total_unresolved = wp_data.get("total_unresolved", 0)
+
+            if not weak_points:
+                st.success("🎉 没有发现薄弱点！")
+            else:
+                st.caption(f"基于 {total_unresolved} 条未解决错题分析")
+
+                # 按错误类型分布
+                if by_type:
+                    st.subheader("📊 错误类型分布")
+                    cols = st.columns(len(by_type))
+                    for i, (etype, count) in enumerate(by_type.items()):
+                        with cols[i]:
+                            st.metric(etype, f"{count} 次")
+
+                st.markdown("---")
+
+                # 薄弱知识点排行
+                st.subheader("🔴 薄弱知识点排行")
+                for i, wp in enumerate(weak_points):
+                    kp = wp.get("knowledge_point", "未知")
+                    count = wp.get("error_count", 0)
+                    examples = wp.get("examples", [])
+
+                    with st.container():
+                        st.markdown(f"**{i+1}. {kp}** — 错误 **{count}** 次")
+                        if examples:
+                            with st.expander(f"查看错题示例 ({len(examples)} 条)"):
+                                for ex in examples:
+                                    st.markdown(
+                                        f"✗ `{ex.get('user_answer', '')}` → ✓ `{ex.get('correct_answer', '')}`"
+                                    )
+                        st.progress(min(1.0, count / max(1, weak_points[0].get('error_count', 1))))
+
+                # LLM 改进建议
+                if suggestions:
+                    st.markdown("---")
+                    st.subheader("💡 改进建议")
+                    for s in suggestions:
+                        st.info(s)
+        else:
+            st.info("📭 暂无薄弱点数据。做题产生错题后会自动分析。")
+
+    # ===== Tab 3: 易混概念对 =====
+    with tab3:
+        conf_resp = api_get("/memory/confusions")
+        if conf_resp and conf_resp.status_code == 200:
+            conf_data = conf_resp.json()
+            pairs = conf_data.get("data", [])
+            total_pairs = conf_data.get("total", 0)
+
+            if not pairs:
+                st.success("🎉 没有检测到易混概念对！")
+                st.caption("当做错的不同知识点出现在同一批题目中时，系统会自动检测并记录混淆对。")
+            else:
+                st.caption(f"共检测到 {total_pairs} 组易混概念")
+
+                for p in pairs:
+                    a = p.get("concept_a", "")
+                    b = p.get("concept_b", "")
+                    count = p.get("error_count", 0)
+                    last = (p.get("last_confused_at") or "")[:10]
+
+                    col_main, col_count = st.columns([3, 1])
+                    with col_main:
+                        st.markdown(f"### {a} ↔ {b}")
+                        st.caption(f"最近混淆: {last}")
+                    with col_count:
+                        severity = "🔴" if count >= 3 else "🟡" if count >= 2 else "🟢"
+                        st.metric(f"{severity} 混淆次数", count)
+
+                    st.markdown("---")
+        else:
+            st.info("📭 暂无易混概念数据。")
 
 
 # ===================================================================

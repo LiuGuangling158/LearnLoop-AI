@@ -56,7 +56,6 @@ class GradingAgent(BaseAgent):
             return AgentResult(success=False, error="缺少题目数据 (quiz_data)")
 
         if not user_answers:
-            # 尝试从 user_input 解析
             return AgentResult(success=False, error="缺少用户答案 (user_answers)")
 
         prompt = f"""请批改以下答题：

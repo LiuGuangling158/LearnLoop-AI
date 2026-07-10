@@ -2,7 +2,6 @@
 记忆相关 API 路由 (v0.4)
 薄弱点分析、易混概念对、学习报告
 """
-import json
 from fastapi import APIRouter, HTTPException
 from ...core.orchestrator import orchestrator
 from ...services.sm2_service import sm2_service
