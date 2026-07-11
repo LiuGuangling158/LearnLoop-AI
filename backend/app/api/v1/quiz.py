@@ -182,6 +182,7 @@ async def quiz_history(user_id: str = "default", limit: int = 20):
     """
     session = db_manager.get_session()
     try:
+        total = session.query(Quiz).filter(Quiz.user_id == user_id).count()
         quizzes = (
             session.query(Quiz)
             .filter(Quiz.user_id == user_id)
@@ -201,7 +202,7 @@ async def quiz_history(user_id: str = "default", limit: int = 20):
                 }
                 for q in quizzes
             ],
-            "pagination": {"limit": limit, "total": len(quizzes)},
+            "pagination": {"limit": limit, "total": total},
         }
     finally:
         session.close()

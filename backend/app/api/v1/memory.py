@@ -82,6 +82,11 @@ async def weak_points(user_id: str = "default"):
                 )
                 if llm_result.success and isinstance(llm_result.data, dict):
                     improvement_suggestions = llm_result.data.get("improvement_suggestions", [])
+                    # 兼容旧版 LLM 返回 improvement_plan 字段
+                    if not improvement_suggestions:
+                        plan = llm_result.data.get("improvement_plan", "")
+                        if plan:
+                            improvement_suggestions = [plan] if isinstance(plan, str) else plan
                     if isinstance(improvement_suggestions, str):
                         improvement_suggestions = [improvement_suggestions]
         except Exception as e:

@@ -66,12 +66,12 @@ class LLMProvider(ABC):
         if config is None:
             return self.config
         merged = LLMConfig(
-            model=config.model or self.config.model,
-            temperature=config.temperature or self.config.temperature,
-            max_tokens=config.max_tokens or self.config.max_tokens,
-            top_p=config.top_p or self.config.top_p,
-            system_prompt=config.system_prompt or self.config.system_prompt,
-            json_mode=config.json_mode or self.config.json_mode,
-            json_schema=config.json_schema or self.config.json_schema,
+            model=config.model if config.model else self.config.model,
+            temperature=config.temperature if config.temperature is not None else self.config.temperature,
+            max_tokens=config.max_tokens if config.max_tokens is not None else self.config.max_tokens,
+            top_p=config.top_p if config.top_p is not None else self.config.top_p,
+            system_prompt=config.system_prompt if config.system_prompt else self.config.system_prompt,
+            json_mode=config.json_mode if config.json_mode else self.config.json_mode,
+            json_schema=config.json_schema if config.json_schema else self.config.json_schema,
         )
         return merged

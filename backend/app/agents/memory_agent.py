@@ -16,7 +16,8 @@ MEMORY_SYSTEM_PROMPT = """你是一位学习记忆分析专家，擅长分析学
 {
   "weak_points": ["薄弱点1", "薄弱点2"],
   "confusion_pairs": [{"concept_a": "A", "concept_b": "B", "reason": "混淆原因"}],
-  "improvement_plan": "学习建议"
+  "improvement_plan": "学习建议",
+  "improvement_suggestions": ["建议1", "建议2"]
 }
 
 请严格输出 JSON 格式。"""

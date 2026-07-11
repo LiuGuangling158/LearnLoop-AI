@@ -63,7 +63,7 @@ class SM2Calculator:
             new_repetitions = repetitions + 1
         else:
             new_interval = 1
-            new_repetitions = 1
+            new_repetitions = 0  # score < 3 时重置为 0，从头开始复习
 
         # 更新 EF
         new_ef = ef + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02))

@@ -47,11 +47,17 @@ def split_markdown_by_headers(
             if level == 1:
                 current_section_path = title
             elif level == 2:
-                parts = current_section_path.split(" > ")
-                current_section_path = " > ".join(parts[:1] + [title])
+                if current_section_path:
+                    parts = current_section_path.split(" > ")
+                    current_section_path = " > ".join(parts[:1] + [title])
+                else:
+                    current_section_path = title
             else:
-                parts = current_section_path.split(" > ")
-                current_section_path = " > ".join(parts[:2] + [title])
+                if current_section_path:
+                    parts = current_section_path.split(" > ")
+                    current_section_path = " > ".join(parts[:2] + [title])
+                else:
+                    current_section_path = title
 
         # 如果段落太长，进一步切分
         if len(section) > chunk_size:
