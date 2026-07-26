@@ -1,9 +1,10 @@
 """
 AI Study Agent - Streamlit MVP 前端 v0.4
-纯 Python 写的学习界面，9 页面
+纯 Python 写的企业知识训练界面，10 页面
 """
 import sys
 from pathlib import Path
+from html import escape
 
 # 添加 backend 到 path
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
@@ -45,39 +46,190 @@ if "kb_confirm_clear_all" not in st.session_state:
 # ========== 样式 ==========
 st.markdown("""
 <style>
-    .main-title { font-size: 2.5rem; font-weight: 700; color: #6366f1; }
-    .agent-card {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-        margin-bottom: 0.5rem;
+    :root {
+        --ink: #172033;
+        --muted: #5b6475;
+        --line: rgba(35, 48, 75, 0.12);
+        --glass: rgba(255, 255, 255, 0.68);
+        --blue: #2563eb;
+        --cyan: #0891b2;
+        --green: #16a34a;
+        --amber: #d97706;
+        --rose: #e11d48;
     }
-    .result-box {
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        background: #f8fafc;
-        border: 1px solid #e5e7eb;
+    .stApp {
+        color: var(--ink);
+        background:
+            radial-gradient(circle at 12% 10%, rgba(37, 99, 235, 0.14), transparent 26%),
+            radial-gradient(circle at 82% 4%, rgba(8, 145, 178, 0.12), transparent 24%),
+            linear-gradient(135deg, #f6f9ff 0%, #edf7f4 46%, #fff8ee 100%);
+    }
+    .block-container {
+        padding-top: 1.5rem;
+        max-width: 1320px;
+    }
+    section[data-testid="stSidebar"] {
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(18px);
+        border-right: 1px solid rgba(255, 255, 255, 0.72);
+    }
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+    section[data-testid="stSidebar"] label {
+        color: #263246;
+    }
+    h1, h2, h3, h4 {
+        letter-spacing: 0;
+    }
+    div[data-testid="stMetric"] {
+        background: transparent;
+        border-left: 3px solid rgba(37, 99, 235, 0.55);
+        padding-left: 0.85rem;
+    }
+    div[data-testid="stMetric"] label {
+        color: var(--muted);
+    }
+    .hero-glass {
+        padding: 1.2rem 1.35rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.42));
+        box-shadow: 0 18px 42px rgba(31, 41, 55, 0.10);
+        backdrop-filter: blur(18px);
+        margin-bottom: 1rem;
+    }
+    .main-title {
+        font-size: clamp(2.0rem, 4vw, 3.2rem);
+        font-weight: 760;
+        color: #14213d;
+        line-height: 1.08;
+        margin: 0 0 0.45rem 0;
+    }
+    .hero-copy {
+        color: #435063;
+        font-size: 1.02rem;
+        margin: 0;
+    }
+    .hero-ribbon {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
         margin-top: 1rem;
     }
-    .note-card {
-        padding: 1.2rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-        margin-bottom: 0.8rem;
-        cursor: pointer;
-        transition: all 0.2s;
-        background: #ffffff;
+    .ribbon-dot {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.28rem 0.58rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        color: #31405a;
+        font-size: 0.84rem;
     }
-    .note-card:hover {
-        border-color: #6366f1;
-        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+    .section-glass {
+        margin: 1rem 0;
+        padding: 1rem 1.1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.50);
+        backdrop-filter: blur(14px);
     }
-    .tag-badge {
+    .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0 0 0.7rem 0;
+        color: #1f2a44;
+        font-size: 1.08rem;
+        font-weight: 700;
+    }
+    .metric-band {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.85rem;
+        padding: 0.85rem 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+    }
+    .metric-item {
+        min-height: 78px;
+        padding: 0.4rem 0.75rem;
+        border-left: 4px solid var(--accent);
+        background: linear-gradient(90deg, var(--wash), rgba(255, 255, 255, 0.26));
+    }
+    .metric-label {
+        color: var(--muted);
+        font-size: 0.84rem;
+        margin-bottom: 0.2rem;
+    }
+    .metric-value {
+        color: #15213a;
+        font-size: 1.85rem;
+        line-height: 1.05;
+        font-weight: 760;
+    }
+    .metric-note {
+        color: #64748b;
+        font-size: 0.78rem;
+        margin-top: 0.22rem;
+    }
+    .flow-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.45rem;
+        margin: 0.4rem 0 0.1rem 0;
+    }
+    .flow-step {
+        padding: 0.72rem 0.75rem;
+        border-radius: 8px;
+        color: #1f2a44;
+        background: linear-gradient(135deg, rgba(255,255,255,0.64), var(--wash));
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        min-height: 74px;
+    }
+    .flow-step strong {
+        display: block;
+        font-size: 0.92rem;
+    }
+    .flow-step span {
+        color: var(--muted);
+        font-size: 0.78rem;
+    }
+    .scenario-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.7rem;
+    }
+    .scenario-row {
+        border-left: 4px solid var(--accent);
+        padding: 0.7rem 0.8rem;
+        background: linear-gradient(90deg, var(--wash), rgba(255,255,255,0.28));
+        border-radius: 8px;
+    }
+    .scenario-row strong {
+        display: block;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+    }
+    .scenario-row span {
+        display: block;
+        color: #4b5563;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+    .glass-list-row {
+        padding: 0.85rem 0.2rem 0.85rem 0.8rem;
+        border-left: 3px solid var(--accent, #2563eb);
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(90deg, var(--wash, rgba(37,99,235,0.08)), rgba(255,255,255,0.18));
+    }
+    .tag-badge, .tag-chip {
         display: inline-block;
         padding: 0.15rem 0.5rem;
         border-radius: 0.25rem;
-        background: #eef2ff;
-        color: #6366f1;
+        background: rgba(37, 99, 235, 0.10);
+        color: #1d4ed8;
         font-size: 0.8rem;
         margin-right: 0.3rem;
     }
@@ -85,29 +237,16 @@ st.markdown("""
         color: #9ca3af;
         font-size: 0.85rem;
     }
-    .stat-card {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        text-align: center;
+    .error-row {
+        padding: 0.85rem 0.9rem;
+        border-left: 4px solid #e11d48;
+        border-bottom: 1px solid rgba(225, 29, 72, 0.16);
+        background: linear-gradient(90deg, rgba(225, 29, 72, 0.10), rgba(255, 255, 255, 0.25));
+        margin-bottom: 0.55rem;
     }
-    .stat-card.green {
-        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-    }
-    .stat-card.orange {
-        background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-    }
-    .error-item {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #fecaca;
-        background: #fef2f2;
-        margin-bottom: 0.6rem;
-    }
-    .error-item.resolved {
-        border-color: #bbf7d0;
-        background: #f0fdf4;
+    .error-row.resolved {
+        border-left-color: #16a34a;
+        background: linear-gradient(90deg, rgba(22, 163, 74, 0.10), rgba(255, 255, 255, 0.25));
     }
     .empty-state {
         text-align: center;
@@ -166,10 +305,171 @@ def api_put(path: str, json_data: dict = None, timeout: int = 10):
         return None
 
 
+ENTERPRISE_SCENARIOS = [
+    {
+        "name": "QA/测试训练",
+        "desc": "测试规范、缺陷流程、ISTQB 和自动化实践转成训练题与复习任务",
+        "color": "#2563eb",
+        "wash": "rgba(37,99,235,0.10)",
+    },
+    {
+        "name": "客服/售后培训",
+        "desc": "FAQ、工单案例和 SOP 转成话术训练，减少政策误答和质检扣分",
+        "color": "#0891b2",
+        "wash": "rgba(8,145,178,0.10)",
+    },
+    {
+        "name": "合规制度培训",
+        "desc": "制度条款、审计案例和监管问答形成可追踪的掌握度记录",
+        "color": "#d97706",
+        "wash": "rgba(217,119,6,0.12)",
+    },
+    {
+        "name": "研发新人入职",
+        "desc": "架构文档、部署手册和事故复盘沉淀为问答、测验和辅导建议",
+        "color": "#16a34a",
+        "wash": "rgba(22,163,74,0.10)",
+    },
+    {
+        "name": "销售/产品赋能",
+        "desc": "产品白皮书、竞品对比和方案材料转成异议处理训练",
+        "color": "#e11d48",
+        "wash": "rgba(225,29,72,0.10)",
+    },
+]
+
+NAV_PAGES = [
+    "📊 学习仪表盘",
+    "📝 生成笔记",
+    "📚 我的笔记",
+    "📁 知识库管理",
+    "🎯 出题练习",
+    "🔍 知识问答",
+    "📅 复习计划",
+    "📋 记忆中心",
+    "🏢 企业蓝图",
+    "⚙️ 系统信息",
+]
+
+
+def render_hero(title: str, subtitle: str, chips: list[str] = None):
+    """渲染毛玻璃页头。"""
+    chips = chips or []
+    chip_html = "".join(
+        f'<span class="ribbon-dot">{escape(chip)}</span>' for chip in chips
+    )
+    st.markdown(
+        f"""
+        <div class="hero-glass">
+            <p class="main-title">{escape(title)}</p>
+            <p class="hero-copy">{escape(subtitle)}</p>
+            <div class="hero-ribbon">{chip_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_section(title: str, body_html: str):
+    """渲染玻璃分区，保持页面轻量通透。"""
+    st.markdown(
+        f"""
+        <div class="section-glass">
+            <div class="section-title">{escape(title)}</div>
+            {body_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metric_band(metrics: list[dict]):
+    """渲染横向指标带。"""
+    colors = ["#2563eb", "#0891b2", "#16a34a", "#d97706", "#e11d48"]
+    items = []
+    for i, metric in enumerate(metrics):
+        color = metric.get("color", colors[i % len(colors)])
+        wash = metric.get("wash", f"{color}18")
+        note = metric.get("note", "")
+        items.append(
+            f"""
+            <div class="metric-item" style="--accent:{color}; --wash:{wash};">
+                <div class="metric-label">{escape(str(metric.get("label", "")))}</div>
+                <div class="metric-value">{escape(str(metric.get("value", "")))}</div>
+                <div class="metric-note">{escape(str(note))}</div>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="metric-band">{"".join(items)}</div>', unsafe_allow_html=True)
+
+
+def render_learning_flow():
+    steps = [
+        ("资料导入", "PDF/MD/TXT"),
+        ("结构化笔记", "Note Agent"),
+        ("岗位训练", "Quiz Agent"),
+        ("自动批改", "Grading Agent"),
+        ("薄弱点沉淀", "Memory Agent"),
+        ("间隔复习", "SM-2 Scheduler"),
+    ]
+    colors = ["#2563eb", "#0891b2", "#16a34a", "#d97706", "#e11d48", "#7c3aed"]
+    html = []
+    for i, (name, desc) in enumerate(steps):
+        html.append(
+            f"""
+            <div class="flow-step" style="--wash:{colors[i]}18;">
+                <strong>{escape(name)}</strong>
+                <span>{escape(desc)}</span>
+            </div>
+            """
+        )
+    render_section("企业学习闭环", f'<div class="flow-strip">{"".join(html)}</div>')
+
+
+def render_scenario_matrix():
+    rows = []
+    for item in ENTERPRISE_SCENARIOS:
+        rows.append(
+            f"""
+            <div class="scenario-row" style="--accent:{item["color"]}; --wash:{item["wash"]};">
+                <strong>{escape(item["name"])}</strong>
+                <span>{escape(item["desc"])}</span>
+            </div>
+            """
+        )
+    render_section("企业级使用场景", f'<div class="scenario-grid">{"".join(rows)}</div>')
+
+
+def render_list_row(title: str, meta: str = "", color: str = "#2563eb", wash: str = "rgba(37,99,235,0.08)"):
+    st.markdown(
+        f"""
+        <div class="glass-list-row" style="--accent:{color}; --wash:{wash};">
+            <strong>{escape(title)}</strong><br/>
+            <span class="meta-text">{escape(meta)}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def navigate_to(page_name: str):
+    """在下一次 rerun 前切换侧边栏页面。"""
+    if page_name in NAV_PAGES:
+        st.session_state.pending_nav_page = page_name
+    st.rerun()
+
+
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = NAV_PAGES[0]
+if st.session_state.get("pending_nav_page") in NAV_PAGES:
+    st.session_state.nav_page = st.session_state.pop("pending_nav_page")
+
+
 # ========== 侧边栏 ==========
 with st.sidebar:
     st.markdown("## 🧠 LearnLoop-AI")
-    st.markdown("v0.4.0 — 学→练→测→记→复")
+    st.markdown("企业知识训练平台 · v0.4.0")
+    st.caption("学 → 练 → 测 → 记 → 复")
     st.markdown("---")
 
     # 后端状态
@@ -184,36 +484,32 @@ with st.sidebar:
     # 导航
     page = st.radio(
         "选择功能",
-        [
-            "📊 学习仪表盘",
-            "📝 生成笔记",
-            "📚 我的笔记",
-            "📁 知识库管理",
-            "🎯 出题练习",
-            "🔍 知识问答",
-            "📅 复习计划",
-            "📋 记忆中心",
-            "⚙️ 系统信息",
-        ],
+        NAV_PAGES,
+        key="nav_page",
         label_visibility="collapsed",
     )
 
     st.markdown("---")
+    st.markdown("### 企业场景")
+    st.caption("QA 训练 · 客服培训 · 合规认证 · 研发入职 · 销售赋能")
     st.markdown("### 💡 提示")
     st.info("在 .env 中配置 DEEPSEEK_API_KEY 后才能使用 AI 功能")
 
 
 # ========== 主区域标题 ==========
-st.markdown('<p class="main-title">🧠 LearnLoop-AI</p>', unsafe_allow_html=True)
-st.markdown("*AI 驱动的个性化学习助手 — Multi-Agent 系统 v0.4*")
+render_hero(
+    "LearnLoop-AI",
+    "AI 驱动的企业知识训练平台，用 Multi-Agent 把资料变成可问答、可练习、可追踪、可复习的能力闭环。",
+    ["Multi-Agent", "RAG 知识库", "自动出题", "智能批改", "SM-2 复习"],
+)
 
 
 # ===================================================================
 # 📊 学习仪表盘（NEW in v0.4）
 # ===================================================================
 if page == "📊 学习仪表盘":
-    st.header("📊 学习仪表盘")
-    st.markdown("学习概览、待复习任务、SM-2 遗忘曲线进度")
+    st.header("📊 企业学习运营仪表盘")
+    st.markdown("围绕知识资产、岗位训练、测评反馈和复习节奏追踪组织能力。")
 
     # 加载统计数据
     stats_resp = api_get("/schedule/stats")
@@ -226,21 +522,24 @@ if page == "📊 学习仪表盘":
     if daily_resp and daily_resp.status_code == 200:
         daily_data = daily_resp.json().get("data", {})
 
-    # --- 统计卡片 ---
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        streak = stats.get("streak_days", 0)
-        st.metric("🔥 连续学习", f"{streak} 天")
-    with col2:
-        due = stats.get("due_count", 0)
-        st.metric("📅 待复习", f"{due} 项", delta=f"{stats.get('overdue_count', 0)} 逾期" if stats.get("overdue_count", 0) > 0 else None)
-    with col3:
-        total_q = stats.get("total_quizzes", 0)
-        st.metric("📝 总做题", f"{total_q} 次")
-    with col4:
-        mastery = stats.get("mastery_rate", 0)
-        st.metric("📈 掌握率", f"{mastery}%")
+    # --- 运营指标带 ---
+    streak = stats.get("streak_days", 0)
+    due = stats.get("due_count", 0)
+    overdue = stats.get("overdue_count", 0)
+    total_q = stats.get("total_quizzes", 0)
+    mastery = stats.get("mastery_rate", 0)
+    total_kps = stats.get("total_kps", 0)
+    render_metric_band([
+        {"label": "连续学习", "value": f"{streak} 天", "note": "个人/团队活跃节奏", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+        {"label": "待复习知识点", "value": f"{due} 项", "note": f"{overdue} 项逾期", "color": "#d97706", "wash": "rgba(217,119,6,0.12)"},
+        {"label": "测验提交", "value": f"{total_q} 次", "note": "训练闭环样本", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+        {"label": "掌握率", "value": f"{mastery}%", "note": "基于错题解决情况", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+        {"label": "知识点资产", "value": f"{total_kps} 个", "note": "SM-2 跟踪对象", "color": "#e11d48", "wash": "rgba(225,29,72,0.10)"},
+    ])
 
+    st.markdown("---")
+    render_learning_flow()
+    render_scenario_matrix()
     st.markdown("---")
 
     # --- 今日待复习 ---
@@ -249,7 +548,7 @@ if page == "📊 学习仪表盘":
         st.subheader("📅 今日待复习任务")
     with col_action:
         if st.button("🔄 去复习页面", type="primary", use_container_width=True, key="goto_review_from_dash"):
-            st.rerun()
+            navigate_to("📅 复习计划")
 
     daily_tasks = daily_data.get("daily_tasks", [])
     if not daily_tasks:
@@ -259,16 +558,18 @@ if page == "📊 学习仪表盘":
             col_empty, _ = st.columns([1, 3])
             with col_empty:
                 if st.button("🚀 去生成笔记", type="primary", use_container_width=True, key="goto_note_from_dash"):
-                    st.rerun()
+                    navigate_to("📝 生成笔记")
     else:
         for task in daily_tasks[:8]:
             priority = task.get("priority", "low")
-            emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(priority, "⚪")
+            color = {"high": "#e11d48", "medium": "#d97706", "low": "#16a34a"}.get(priority, "#64748b")
+            wash = {"high": "rgba(225,29,72,0.10)", "medium": "rgba(217,119,6,0.12)", "low": "rgba(22,163,74,0.10)"}.get(priority, "rgba(100,116,139,0.10)")
             with st.container():
-                st.markdown(
-                    f"**{emoji} {task.get('knowledge_point', '未知')}** | "
-                    f"⏱ {task.get('suggested_duration_min', 10)} 分钟 | "
-                    f"{task.get('reason', '')}",
+                render_list_row(
+                    task.get("knowledge_point", "未知"),
+                    f"优先级: {priority} | {task.get('suggested_duration_min', 10)} 分钟 | {task.get('reason', '')}",
+                    color=color,
+                    wash=wash,
                 )
 
         total_time = daily_data.get("total_estimated_time_min", 0)
@@ -311,32 +612,41 @@ if page == "📊 学习仪表盘":
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("📝 生成笔记", use_container_width=True, key="quick_note"):
-            st.rerun()
+            navigate_to("📝 生成笔记")
     with col2:
         if st.button("🎯 出题练习", use_container_width=True, key="quick_quiz"):
-            st.rerun()
+            navigate_to("🎯 出题练习")
     with col3:
         if st.button("📋 查看错题", use_container_width=True, key="quick_errors"):
-            st.rerun()
+            navigate_to("📋 记忆中心")
     with col4:
         if st.button("🔍 知识问答", use_container_width=True, key="quick_rag"):
-            st.rerun()
+            navigate_to("🔍 知识问答")
 
 
 # ===================================================================
 # 📝 生成笔记
 # ===================================================================
 elif page == "📝 生成笔记":
-    st.header("📝 生成学习笔记")
-    st.markdown("输入一个主题，AI 会帮你生成结构化的 Markdown 笔记，并自动保存到知识库")
+    st.header("📝 生成岗位知识笔记")
+    st.markdown("把企业资料、培训主题或岗位 SOP 转成结构化 Markdown，并自动进入知识库和复习体系。")
 
-    col1, col2 = st.columns([3, 1])
+    col0, col1, col2 = st.columns([1.4, 3, 1])
+    with col0:
+        scenario = st.selectbox(
+            "企业场景",
+            ["通用学习", "QA/测试训练", "客服/售后培训", "合规制度培训", "研发新人入职", "销售/产品赋能"],
+        )
     with col1:
-        topic = st.text_input("学习主题", placeholder="例如：软件测试方法、ISTQB 基础、黑盒测试...")
+        topic = st.text_input("学习主题", placeholder="例如：软件测试方法、退款政策、代码评审规范...")
     with col2:
         style = st.selectbox("笔记风格", ["detailed", "summary", "mindmap"])
 
-    source_text = st.text_area("补充内容（可选）", placeholder="粘贴你想整理的文章、课件内容...", height=150)
+    source_text = st.text_area(
+        "补充内容（可选）",
+        placeholder=f"粘贴 {scenario} 相关制度、SOP、课件、FAQ 或项目复盘内容...",
+        height=150,
+    )
 
     if st.button("🚀 生成笔记", type="primary", disabled=not topic):
         with st.spinner("AI 正在整理笔记..."):
@@ -361,19 +671,21 @@ elif page == "📝 生成笔记":
                 with st.container():
                     st.markdown(note.get("content_md", "无内容"))
 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("章节数", note.get("sections_count", 0))
-                with col2:
-                    tags = note.get("tags", [])
-                    st.markdown(f"**标签:** {' '.join(['`' + t + '`' for t in tags])}")
-                with col3:
-                    st.metric("耗时", f"{data.get('metadata', {}).get('elapsed_ms', 0)}ms")
+                tags = note.get("tags", [])
+                render_metric_band([
+                    {"label": "章节数", "value": note.get("sections_count", 0), "note": "结构化学习单元", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+                    {"label": "企业场景", "value": scenario, "note": "用于岗位化训练", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+                    {"label": "耗时", "value": f"{data.get('metadata', {}).get('elapsed_ms', 0)}ms", "note": "Agent 生成链路", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+                ])
+                if tags:
+                    st.markdown(f"**标签:** {' '.join(['`' + str(t) + '`' for t in tags])}")
+
+                col4, _ = st.columns([1, 4])
                 with col4:
                     if note.get("_persisted"):
                         if st.button("📚 查看我的笔记", key="goto_notes_from_gen"):
                             st.session_state.notes_page_view = "list"
-                            st.rerun()
+                            navigate_to("📚 我的笔记")
 
                 if note.get("summary"):
                     with st.expander("📝 一句话总结"):
@@ -410,11 +722,11 @@ elif page == "📚 我的笔记":
                 st.caption(f"📝 {note.get('word_count', 0)} 字")
             with col3:
                 st.caption(f"📂 {note.get('source_type', '')}")
-            with col4:
-                tags = note.get("tags", [])
-                if tags:
-                    tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in tags])
-                    st.markdown(tag_html, unsafe_allow_html=True)
+                with col4:
+                    tags = note.get("tags", [])
+                    if tags:
+                        tag_html = " ".join([f'<span class="tag-badge">{escape(str(t))}</span>' for t in tags])
+                        st.markdown(tag_html, unsafe_allow_html=True)
 
             st.markdown("---")
             st.markdown(note.get("content_md", "无内容"))
@@ -523,11 +835,10 @@ elif page == "📚 我的笔记":
                     col_empty, _ = st.columns([1, 3])
                     with col_empty:
                         if st.button("🚀 去生成笔记", type="primary", use_container_width=True):
-                            st.rerun()
+                            navigate_to("📝 生成笔记")
 
             for note in notes:
                 with st.container():
-                    st.markdown("---")
                     col_main, col_action = st.columns([8, 1])
                     with col_main:
                         note_title = note.get("title", "无标题")
@@ -538,13 +849,16 @@ elif page == "📚 我的笔记":
                         note_source = note.get("source_type", "")
                         source_label = "🤖 AI生成" if note_source == "generated" else "📤 上传"
 
-                        st.markdown(f"### {note_title}")
-                        if note_summary:
-                            st.markdown(note_summary[:150] + ("..." if len(note_summary) > 150 else ""))
-
-                        tag_html = " ".join([f'<span class="tag-badge">{t}</span>' for t in note_tags])
+                        tag_html = " ".join([f'<span class="tag-badge">{escape(str(t))}</span>' for t in note_tags])
                         st.markdown(
-                            f'{tag_html} <span class="meta-text">| {source_label} | 📅 {note_date} | 📝 {note_words} 字</span>',
+                            f"""
+                            <div class="glass-list-row" style="--accent:#2563eb; --wash:rgba(37,99,235,0.08);">
+                                <strong>{escape(note_title)}</strong><br/>
+                                <span>{escape(note_summary[:150] + ("..." if len(note_summary) > 150 else ""))}</span><br/>
+                                {tag_html}
+                                <span class="meta-text">| {source_label} | 📅 {note_date} | 📝 {note_words} 字</span>
+                            </div>
+                            """,
                             unsafe_allow_html=True,
                         )
 
@@ -580,19 +894,16 @@ elif page == "📁 知识库管理":
     st.header("📁 知识库管理")
     st.markdown("上传学习文档到知识库，自动建立向量索引供 RAG 检索")
 
-    # 统计卡片
+    # 知识资产指标带
     stats_resp = api_get("/rag/stats")
     if stats_resp and stats_resp.status_code == 200:
         stats = stats_resp.json().get("data", {})
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("📄 总文档", stats.get("total_notes", 0))
-        with col2:
-            st.metric("🤖 AI生成", stats.get("generated_notes", 0))
-        with col3:
-            st.metric("📤 上传文档", stats.get("uploaded_notes", 0))
-        with col4:
-            st.metric("🧩 向量块", stats.get("total_chunks", 0))
+        render_metric_band([
+            {"label": "总文档", "value": stats.get("total_notes", 0), "note": "企业知识资产", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+            {"label": "AI 生成", "value": stats.get("generated_notes", 0), "note": "结构化笔记", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+            {"label": "上传文档", "value": stats.get("uploaded_notes", 0), "note": "制度/SOP/课件", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+            {"label": "向量块", "value": stats.get("total_chunks", 0), "note": "RAG 检索单元", "color": "#d97706", "wash": "rgba(217,119,6,0.12)"},
+        ])
 
     st.markdown("---")
 
@@ -658,12 +969,15 @@ elif page == "📁 知识库管理":
 
         for source in sources:
             with st.container():
-                st.markdown("---")
                 col_main, col_actions = st.columns([7, 2])
                 with col_main:
-                    st.markdown(f"#### 📄 {source.get('title', '无标题')}")
                     src_date = (source.get("created_at") or "")[:10]
-                    st.caption(f"📝 {source.get('word_count', 0)} 字 | 📅 {src_date}")
+                    render_list_row(
+                        source.get("title", "无标题"),
+                        f"字数: {source.get('word_count', 0)} | 创建日期: {src_date} | 来源: 企业知识库",
+                        color="#0891b2",
+                        wash="rgba(8,145,178,0.10)",
+                    )
                 with col_actions:
                     col_view, col_del = st.columns(2)
                     with col_view:
@@ -794,12 +1108,17 @@ elif page == "📁 知识库管理":
 # 🎯 出题练习
 # ===================================================================
 elif page == "🎯 出题练习":
-    st.header("🎯 出题练习")
-    st.markdown("根据知识点自动生成练习题")
+    st.header("🎯 岗位训练与测评")
+    st.markdown("根据企业知识点自动生成题目，用于新人训练、岗位认证、合规测评和复训。")
 
-    col1, col2, col3 = st.columns(3)
+    col0, col1, col2, col3 = st.columns([1.3, 2, 1, 1])
+    with col0:
+        quiz_scenario = st.selectbox(
+            "训练场景",
+            ["QA/测试训练", "客服/售后培训", "合规制度培训", "研发新人入职", "销售/产品赋能"],
+        )
     with col1:
-        quiz_topic = st.text_input("出题主题", placeholder="例如：软件测试基础")
+        quiz_topic = st.text_input("出题主题", placeholder="例如：边界值分析、退款条件、代码评审规范")
     with col2:
         difficulty = st.selectbox("难度", ["easy", "medium", "hard"], index=1)
     with col3:
@@ -856,10 +1175,10 @@ elif page == "🎯 出题练习":
 # 🔍 知识问答
 # ===================================================================
 elif page == "🔍 知识问答":
-    st.header("🔍 知识问答")
-    st.markdown("向你的知识库提问，AI 会基于你的笔记来回答（支持 Multi-Query + Rerank）")
+    st.header("🔍 企业知识问答")
+    st.markdown("面向制度、SOP、课件和项目文档提问，回答基于知识库来源并经过 Multi-Query + Rerank 增强。")
 
-    query = st.text_input("你的问题", placeholder="例如：Verification 和 Validation 的区别是什么？")
+    query = st.text_input("你的问题", placeholder="例如：Verification 和 Validation 的区别是什么？客服什么时候可以承诺退款？")
 
     col1, col2, col3 = st.columns([2, 1, 1])
     with col2:
@@ -946,7 +1265,7 @@ elif page == "📅 复习计划":
         col_empty, _ = st.columns([1, 3])
         with col_empty:
             if st.button("🚀 去生成笔记", type="primary", use_container_width=True, key="goto_note_from_review"):
-                st.rerun()
+                navigate_to("📝 生成笔记")
     else:
         # 优先展示有错题的知识点
         error_kps = [s for s in all_states if s.get("error_count", 0) > 0]
@@ -1144,8 +1463,8 @@ elif page == "📅 复习计划":
 # 📋 记忆中心（v0.4.1 升级：错题本 + 薄弱点 + 易混概念）
 # ===================================================================
 elif page == "📋 记忆中心":
-    st.header("📋 记忆中心")
-    st.markdown("错题追踪、薄弱点分析、易混概念检测")
+    st.header("📋 能力风险与记忆中心")
+    st.markdown("沉淀错题、薄弱知识点和易混概念，帮助团队主管看到能力风险而不只是学习完成率。")
 
     # 加载错题数据（Tab1 用）
     resp = api_get("/quiz/errors/list", {"limit": 100})
@@ -1160,14 +1479,12 @@ elif page == "📋 记忆中心":
     else:
         total = resolved = unresolved = 0
 
-    # 统计卡片
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("📊 总错题", total)
-    with col2:
-        st.metric("❌ 未解决", unresolved)
-    with col3:
-        st.metric("✅ 已掌握", resolved)
+    # 错题与掌握指标带
+    render_metric_band([
+        {"label": "总错题", "value": total, "note": "历史能力风险样本", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+        {"label": "未解决", "value": unresolved, "note": "需要复训/复习", "color": "#e11d48", "wash": "rgba(225,29,72,0.10)"},
+        {"label": "已掌握", "value": resolved, "note": "已闭环问题", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+    ])
 
     st.markdown("---")
 
@@ -1209,14 +1526,14 @@ elif page == "📋 记忆中心":
                 ):
                     for e in filtered:
                         is_resolved = e.get("is_resolved", False)
-                        error_class = "error-item resolved" if is_resolved else "error-item"
+                        error_class = "error-row resolved" if is_resolved else "error-row"
                         status_badge = "✅ 已掌握" if is_resolved else "❌ 待复习"
 
                         st.markdown(f"""
                         <div class="{error_class}">
-                            <strong>{status_badge}</strong> | 类型: {e.get('error_type', '未知')} | 复习: {e.get('reviewed_count', 0)} 次<br/>
-                            <span style="color:#ef4444;">✗ 你的答案: {e.get('user_answer', '')}</span><br/>
-                            <span style="color:#22c55e;">✓ 正确答案: {e.get('correct_answer', '')}</span>
+                            <strong>{escape(status_badge)}</strong> | 类型: {escape(str(e.get('error_type', '未知')))} | 复习: {e.get('reviewed_count', 0)} 次<br/>
+                            <span style="color:#be123c;">你的答案: {escape(str(e.get('user_answer', '')))}</span><br/>
+                            <span style="color:#15803d;">正确答案: {escape(str(e.get('correct_answer', '')))}</span>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -1252,10 +1569,17 @@ elif page == "📋 记忆中心":
                 # 按错误类型分布
                 if by_type:
                     st.subheader("📊 错误类型分布")
-                    cols = st.columns(len(by_type))
-                    for i, (etype, count) in enumerate(by_type.items()):
-                        with cols[i]:
-                            st.metric(etype, f"{count} 次")
+                    colors = ["#e11d48", "#d97706", "#2563eb", "#0891b2", "#16a34a"]
+                    render_metric_band([
+                        {
+                            "label": etype,
+                            "value": f"{count} 次",
+                            "note": "未解决错题",
+                            "color": colors[i % len(colors)],
+                            "wash": "rgba(225,29,72,0.08)",
+                        }
+                        for i, (etype, count) in enumerate(by_type.items())
+                    ])
 
                 st.markdown("---")
 
@@ -1307,15 +1631,111 @@ elif page == "📋 记忆中心":
 
                     col_main, col_count = st.columns([3, 1])
                     with col_main:
-                        st.markdown(f"### {a} ↔ {b}")
-                        st.caption(f"最近混淆: {last}")
+                        severity_color = "#e11d48" if count >= 3 else "#d97706" if count >= 2 else "#16a34a"
+                        severity_wash = "rgba(225,29,72,0.10)" if count >= 3 else "rgba(217,119,6,0.12)" if count >= 2 else "rgba(22,163,74,0.10)"
+                        render_list_row(
+                            f"{a} ↔ {b}",
+                            f"最近混淆: {last} | 适合生成对比题和复习任务",
+                            color=severity_color,
+                            wash=severity_wash,
+                        )
                     with col_count:
                         severity = "🔴" if count >= 3 else "🟡" if count >= 2 else "🟢"
-                        st.metric(f"{severity} 混淆次数", count)
+                        st.markdown(f"**{severity} 混淆次数**")
+                        st.markdown(f"## {count}")
 
                     st.markdown("---")
         else:
             st.info("📭 暂无易混概念数据。")
+
+
+# ===================================================================
+# 🏢 企业蓝图
+# ===================================================================
+elif page == "🏢 企业蓝图":
+    st.header("🏢 企业级落地蓝图")
+    st.markdown("从部门试点到集团级多租户，把学习助手扩展为企业知识运营与人才训练平台。")
+
+    render_learning_flow()
+    render_scenario_matrix()
+
+    st.markdown("---")
+    st.subheader("🎬 场景演示路径")
+    selected_scene = st.selectbox(
+        "选择演示场景",
+        ["QA 新人训练闭环", "客服政策与话术训练", "合规制度培训", "研发新人入职", "销售与产品赋能"],
+    )
+
+    playbooks = {
+        "QA 新人训练闭环": [
+            ("导入资料", "上传 ISTQB、测试规范、缺陷流程和自动化实践。", "#2563eb"),
+            ("生成笔记", "整理“软件测试基础与缺陷生命周期”结构化笔记。", "#0891b2"),
+            ("知识问答", "提问 Verification 和 Validation 的区别，展示来源引用。", "#16a34a"),
+            ("岗位测评", "生成边界值分析、缺陷生命周期等题目并提交答案。", "#d97706"),
+            ("复习闭环", "查看错题、薄弱点、易混概念和 SM-2 复习任务。", "#e11d48"),
+        ],
+        "客服政策与话术训练": [
+            ("导入资料", "上传退款政策、投诉升级 SOP、账号安全处理流程。", "#2563eb"),
+            ("知识问答", "询问什么情况下可以承诺退款，验证政策边界。", "#0891b2"),
+            ("场景出题", "生成退款条件、升级投诉、隐私数据处理题。", "#16a34a"),
+            ("语义批改", "简答题按话术准确性、合规边界、完整性评分。", "#d97706"),
+            ("主管复训", "根据薄弱点安排定向辅导，减少质检扣分。", "#e11d48"),
+        ],
+        "合规制度培训": [
+            ("制度入库", "导入合规手册、审计案例、监管问答。", "#2563eb"),
+            ("条款摘要", "生成适用范围、风险点、操作禁区。", "#0891b2"),
+            ("案例测评", "生成判断题和风险识别简答题。", "#16a34a"),
+            ("风险反馈", "指出遗漏的审批、留痕、权限和数据处理风险。", "#d97706"),
+            ("审计记录", "保留学习、测试、错题、复习的可追溯记录。", "#e11d48"),
+        ],
+        "研发新人入职": [
+            ("项目文档", "导入架构说明、部署流程、代码规范和事故复盘。", "#2563eb"),
+            ("新人问答", "查询服务启动失败排查路径和配置要求。", "#0891b2"),
+            ("训练路径", "生成后端新人 14 天上手计划。", "#16a34a"),
+            ("排障题", "生成部署、日志、配置、评审规范相关题目。", "#d97706"),
+            ("导师辅导", "按新人薄弱点减少重复答疑。", "#e11d48"),
+        ],
+        "销售与产品赋能": [
+            ("产品资料", "导入白皮书、竞品对比、报价规则、行业方案。", "#2563eb"),
+            ("一线查询", "快速回答客户行业场景和产品能力边界。", "#0891b2"),
+            ("异议训练", "生成竞品对比、方案匹配、风险边界题。", "#16a34a"),
+            ("话术评分", "检查完整性、准确性和不当承诺。", "#d97706"),
+            ("赋能复盘", "统计团队薄弱产品点和常见误答。", "#e11d48"),
+        ],
+    }
+    for title, desc, color in playbooks[selected_scene]:
+        render_list_row(title, desc, color=color, wash=f"{color}18")
+
+    st.markdown("---")
+    st.subheader("📈 企业价值指标")
+    render_metric_band([
+        {"label": "新人达标周期", "value": "↓", "note": "入职到通过岗位测评的平均天数", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+        {"label": "题库维护成本", "value": "↓", "note": "由 Agent 从知识库自动生成训练题", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+        {"label": "高频错题率", "value": "↓", "note": "通过错题闭环与 SM-2 复习降低重复错误", "color": "#e11d48", "wash": "rgba(225,29,72,0.10)"},
+        {"label": "知识命中率", "value": "↑", "note": "Multi-Query + Rerank 提升企业文档检索质量", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+    ])
+
+    st.markdown("---")
+    st.subheader("🧭 企业化路线")
+    deployment_html = """
+    <div class="flow-strip">
+        <div class="flow-step" style="--wash:rgba(37,99,235,0.10);"><strong>单机试点版</strong><span>SQLite + ChromaDB，适合小团队 Demo 和 PoC</span></div>
+        <div class="flow-step" style="--wash:rgba(8,145,178,0.10);"><strong>部门生产版</strong><span>PostgreSQL + 权限控制 + 部门看板</span></div>
+        <div class="flow-step" style="--wash:rgba(22,163,74,0.10);"><strong>集团多租户版</strong><span>租户隔离、审计、模型网关和成本治理</span></div>
+        <div class="flow-step" style="--wash:rgba(217,119,6,0.12);"><strong>生态集成版</strong><span>LMS、企业 IM、工单系统、SSO 和 Webhook</span></div>
+    </div>
+    """
+    render_section("部署演进模式", deployment_html)
+
+    governance_rows = [
+        ("身份与组织", "JWT/OIDC、部门、岗位、角色和租户隔离", "#2563eb"),
+        ("内容治理", "专家审核、版本管理、敏感信息检测和题目发布流", "#0891b2"),
+        ("数据安全", "知识库权限过滤、审计日志、密钥托管和数据脱敏", "#e11d48"),
+        ("可观测性", "结构化日志、健康检查、模型成本统计和备份恢复", "#16a34a"),
+    ]
+    st.subheader("🛡️ 治理能力清单")
+    for title, desc, color in governance_rows:
+        render_list_row(title, desc, color=color, wash=f"{color}18")
 
 
 # ===================================================================
@@ -1326,11 +1746,10 @@ elif page == "⚙️ 系统信息":
 
     backend = check_backend()
     if backend:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("LLM Providers", ", ".join(backend.get("llm_providers", [])) or "无")
-        with col2:
-            st.metric("Agents", backend.get("agents", 0))
+        render_metric_band([
+            {"label": "LLM Providers", "value": ", ".join(backend.get("llm_providers", [])) or "无", "note": "模型路由可用供应商", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+            {"label": "Agents", "value": backend.get("agents", 0), "note": "已注册专业 Agent", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+        ])
 
         # 知识库统计
         stats_resp = api_get("/rag/stats")
@@ -1338,15 +1757,12 @@ elif page == "⚙️ 系统信息":
             stats = stats_resp.json().get("data", {})
             st.markdown("---")
             st.subheader("📊 知识库统计")
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("总笔记", stats.get("total_notes", 0))
-            with col2:
-                st.metric("AI生成", stats.get("generated_notes", 0))
-            with col3:
-                st.metric("上传文档", stats.get("uploaded_notes", 0))
-            with col4:
-                st.metric("向量块", stats.get("total_chunks", 0))
+            render_metric_band([
+                {"label": "总笔记", "value": stats.get("total_notes", 0), "note": "结构化知识记录", "color": "#2563eb", "wash": "rgba(37,99,235,0.10)"},
+                {"label": "AI 生成", "value": stats.get("generated_notes", 0), "note": "Agent 自动整理", "color": "#0891b2", "wash": "rgba(8,145,178,0.10)"},
+                {"label": "上传文档", "value": stats.get("uploaded_notes", 0), "note": "企业资料入口", "color": "#16a34a", "wash": "rgba(22,163,74,0.10)"},
+                {"label": "向量块", "value": stats.get("total_chunks", 0), "note": "RAG 检索资产", "color": "#d97706", "wash": "rgba(217,119,6,0.12)"},
+            ])
 
     st.markdown("---")
     st.markdown("### 📂 项目文件结构")
@@ -1364,7 +1780,7 @@ LearnLoop-AI/
 │   ├── tests/
 │   └── requirements.txt
 ├── frontend/
-│   └── streamlit_app.py    # 前端 7 页面
+│   └── streamlit_app.py    # 前端 10 页面
 ├── data/                    # 数据目录
 ├── .env.example
 └── README.md
@@ -1393,12 +1809,13 @@ streamlit run streamlit_app.py
     st.markdown("### 🔧 v0.4 新增功能")
     st.markdown("""
     - ✅ SM-2 遗忘曲线前端联动（自动创建初始状态 + 复习评分更新）
-    - ✅ 学习仪表盘（统计卡片 + 待复习任务 + 知识点进度）
+    - ✅ 学习仪表盘（运营指标带 + 待复习任务 + 知识点进度）
     - ✅ 复习计划页面（评分 0-5 + SM-2 间隔计算 + 下次复习日期展示）
     - ✅ 易混概念对自动检测（错题知识点两两组合创建混淆对）
     - ✅ Memory API（薄弱点分析 + 混淆对列表 + 学习报告）
     - ✅ Schedule API 接入真实数据库（每日任务 / 复习评分 / 统计数据）
     - ✅ SM-2 状态自动创建（笔记生成 + 错题入库时联动）
+    - ✅ 企业蓝图页面（场景演示路径 + 企业价值指标 + 治理路线）
     """)
     st.markdown("### 🔧 v0.3 新增功能")
     st.markdown("""

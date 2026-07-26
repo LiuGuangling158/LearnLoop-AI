@@ -3,9 +3,35 @@ VectorDB 封装 (ChromaDB)
 负责文档 Embedding 存储和语义检索
 """
 import uuid
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 from ..core.config import settings
+
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+except ImportError:
+    chromadb = None
+    ChromaSettings = None
+
+
+class NullCollection:
+    """ChromaDB 未安装时的空集合降级实现。"""
+
+    name = "knowledge_chunks_unavailable"
+
+    def add(self, *args, **kwargs):
+        print("[WARN] ChromaDB 未安装，跳过向量写入")
+
+    def query(self, *args, **kwargs):
+        return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+
+    def get(self, *args, **kwargs):
+        return {"ids": [], "documents": [], "metadatas": []}
+
+    def delete(self, *args, **kwargs):
+        return None
+
+    def count(self):
+        return 0
 
 
 class VectorStore:
@@ -18,6 +44,13 @@ class VectorStore:
     """
 
     def __init__(self):
+        self.available = chromadb is not None
+        if not self.available:
+            self.client = None
+            self.knowledge_collection = NullCollection()
+            print("[WARN] ChromaDB 未安装，向量检索以空集合模式启动")
+            return
+
         self.client = chromadb.PersistentClient(
             path=settings.chroma_persist_dir,
             settings=ChromaSettings(anonymized_telemetry=False),
@@ -139,6 +172,7 @@ class VectorStore:
         return {
             "total_chunks": count,
             "collection_name": self.knowledge_collection.name,
+            "available": self.available,
         }
 
 

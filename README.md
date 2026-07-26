@@ -4,7 +4,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.41-red.svg)](https://streamlit.io)
+[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-6-646cff.svg)](https://vitejs.dev)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.6+-orange.svg)](https://www.trychroma.com)
 [![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](.)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
@@ -14,6 +15,9 @@
 ## 📋 目录
 
 - [项目简介](#项目简介)
+- [企业级定位](#企业级定位)
+- [企业级使用场景](#企业级使用场景)
+- [企业化演进能力](#企业化演进能力)
 - [系统架构](#系统架构)
 - [核心功能](#核心功能)
 - [技术栈](#技术栈)
@@ -26,6 +30,8 @@
 
 ## 项目简介
 
+LearnLoop-AI 是一个 AI 驱动的个性化学习与企业知识训练平台。当前版本以个人学习助手为 MVP 形态，已经跑通“学 → 练 → 测 → 记 → 复”的完整闭环；进一步扩展后，可作为企业内部培训、岗位认证、知识库问答和能力追踪系统。
+
 解决学习场景中的 5 大痛点：
 
 | 痛点 | 描述 | 解决方案 |
@@ -36,7 +42,68 @@
 | 📅 复习无计划 | 不知道该复习什么 | SM-2 遗忘曲线自动规划 |
 | 🔀 多模型切换难 | 不同任务适合不同模型 | LLM Layer 按任务路由 |
 
-**目标用户：** 软件测试/QA 学习者、技术面试备考者、自学群体。
+**目标用户：** 软件测试/QA 学习者、技术面试备考者、自学群体、企业培训负责人、客服/售后团队、研发新人培养团队、合规培训团队。
+
+---
+
+## 企业级定位
+
+在企业中，培训的核心难题通常不是“没有资料”，而是资料分散、学习不可验证、错题无法复盘、知识遗忘无法跟进、管理层缺少能力风险数据。LearnLoop-AI 将文档知识库、Agent 自动生成、智能测评和间隔复习连接起来，让企业知识从静态资料变成可训练、可评估、可追踪的能力资产。
+
+### 企业学习闭环
+
+```text
+企业资料导入
+  → AI 结构化笔记
+  → 岗位化题库生成
+  → 自动批改与反馈
+  → 错题/薄弱点沉淀
+  → SM-2 个性化复习
+  → 团队能力看板
+```
+
+### 企业级价值
+
+| 价值方向 | 说明 |
+|------|------|
+| 新人培养提效 | 将入职手册、SOP、项目文档转化为可问答、可训练、可复习的学习路径 |
+| 知识一致性 | 使用统一知识库和标准答案，减少不同导师、不同团队之间的口径差异 |
+| 培训可验证 | 从“看过课程”升级为“能答题、能解释、能持续复习” |
+| 风险前置发现 | 通过错题、薄弱点和易混概念识别团队能力短板 |
+| 专家经验沉淀 | 把项目复盘、质检案例、故障处理经验沉淀为长期训练资产 |
+| 模型成本可控 | LLM Router 按任务复杂度选择 DeepSeek/OpenAI/Ollama 等模型 |
+
+---
+
+## 企业级使用场景
+
+| 场景 | 典型资料 | 使用方式 | 业务收益 |
+|------|------|------|------|
+| QA/测试团队训练 | 测试规范、ISTQB 资料、缺陷流程、自动化测试指南 | 自动生成测试方法笔记、用例设计题、缺陷分析题，追踪 Verification/Validation 等易混点 | 缩短 QA 新人上手周期，减少用例评审返工 |
+| 客服/售后培训 | FAQ、退款政策、工单案例、投诉升级 SOP | RAG 查询标准处理流程，生成话术题和场景判断题，记录政策误答 | 提升回答一致性，降低质检扣分和错误承诺 |
+| 合规制度培训 | 合规手册、审计案例、监管问答、内部制度 | 生成条款摘要和案例题，按 Rubric 批改风险识别题，形成可审计记录 | 从完成率管理升级为掌握度管理 |
+| 研发新人入职 | 架构文档、部署手册、代码规范、事故复盘 | 支持项目知识问答，生成排障题和规范题，沉淀新人薄弱点 | 减少导师重复答疑，加快首次独立交付 |
+| 销售/产品赋能 | 产品白皮书、竞品对比、行业方案、报价规则 | 生成客户异议处理题和竞品对比题，辅助一线快速查询 | 统一销售话术，缩短新产品赋能周期 |
+
+更完整的企业级方案见：[docs/enterprise-blueprint.md](docs/enterprise-blueprint.md)  
+演示脚本见：[docs/demo-playbooks.md](docs/demo-playbooks.md)
+
+---
+
+## 企业化演进能力
+
+当前项目已经具备 MVP 所需的学习闭环。面向企业生产环境，建议按以下方向增强：
+
+| 能力域 | 当前状态 | 企业级增强 |
+|------|------|------|
+| 身份与组织 | 预留 `user_id`，默认单用户 | JWT/OIDC、部门、角色、租户隔离 |
+| 权限治理 | 开发环境 CORS 全开放 | RBAC、知识库权限、题库审核权限 |
+| 数据存储 | SQLite + ChromaDB | PostgreSQL/pgvector、对象存储、备份恢复 |
+| 内容治理 | AI 生成后直接入库 | 专家审核、版本管理、敏感信息检测 |
+| 管理看板 | 学习统计与错题统计 | 部门/岗位能力矩阵、认证结果、风险排行 |
+| 系统集成 | REST API + React | LMS、企业 IM、知识库、工单系统、Webhook |
+| 可观测性 | 控制台日志 | 结构化日志、调用链追踪、模型成本统计 |
+| 安全合规 | `.env` 管理密钥 | 密钥托管、审计日志、数据脱敏、本地模型策略 |
 
 ---
 
@@ -44,9 +111,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                       Streamlit 前端 (9 页面)                 │
-│             http://localhost:8501                            │
-│  仪表盘 │ 生成笔记 │ 我的笔记 │ 知识库 │ 出题 │ 问答 │ 复习 │ 错题本 │ 系统  │
+│                       React 前端 (10 页面)                    │
+│             http://localhost:5173                            │
+│  仪表盘 │ 生成笔记 │ 我的笔记 │ 知识库 │ 出题 │ 问答 │ 复习 │ 错题本 │ 企业蓝图 │ 系统 │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTP/REST
 ┌────────────────────────▼────────────────────────────────────┐
@@ -101,9 +168,10 @@
 | 📋 **错题本** | 自动收录错题、按知识点分组、已掌握标记 |
 | 🧠 **SM-2 遗忘曲线** | 笔记/错题自动创建 SM-2 状态、复习评分后计算最佳间隔 |
 | 🔄 **混淆对检测** | 错题知识点两两组合自动创建混淆对、按频次排序 |
-| 📊 **学习仪表盘** | 统计卡片 + 待复习任务 + 知识点进度 + 快捷入口 |
+| 📊 **学习仪表盘** | 运营指标带 + 待复习任务 + 知识点进度 + 快捷入口 |
 | 📅 **复习计划** | 到期知识点列表、0-5 评分、SM-2 间隔预测、EF 变化展示 |
 | 🔀 **多模型路由** | DeepSeek / OpenAI / Ollama 可切换，按任务复杂度选模型 |
+| 🏢 **企业蓝图页** | 场景演示路径、企业价值指标、部署演进与治理能力清单 |
 
 ---
 
@@ -112,7 +180,7 @@
 | 层级 | 技术 | 用途 |
 |------|------|------|
 | **后端框架** | FastAPI + Uvicorn | REST API 服务（27 个端点） |
-| **前端** | Streamlit | 纯 Python 前端（9 页面） |
+| **前端** | React 19 + Vite + Lucide Icons | 企业级 SPA 前端（10 页面） |
 | **LLM** | DeepSeek / OpenAI / Ollama | 多模型可切换 |
 | **Embedding** | OpenAI / sentence-transformers | 三级 Fallback |
 | **Agent 框架** | 自研（BaseAgent + Orchestrator + Service） | 6 Agent + 3 Service |
@@ -129,6 +197,7 @@
 ### 前置条件
 
 - Python 3.10+
+- Node.js 18+
 - DeepSeek API Key（[免费注册获取](https://platform.deepseek.com)）
 
 ### 1. 克隆项目
@@ -188,11 +257,13 @@ python -m app.main
 
 ```cmd
 cd frontend
-..\venv\Scripts\activate.bat
-streamlit run streamlit_app.py
+npm install
+npm run dev
 ```
 
-访问 http://localhost:8501 使用前端界面。
+访问 http://localhost:5173 使用 React 前端界面。
+
+> 旧版 Streamlit 前端仍保留在 `frontend/streamlit_app.py`，可作为历史版本参考。
 
 ---
 
@@ -242,7 +313,14 @@ streamlit run streamlit_app.py
 │   ├── tests/
 │   └── requirements.txt
 ├── frontend/
-│   └── streamlit_app.py              # Streamlit 前端（9 页面）
+│   ├── package.json                  # React/Vite 前端依赖与脚本
+│   ├── index.html                    # Vite HTML 入口
+│   ├── vite.config.js                # Vite 配置
+│   ├── src/
+│   │   ├── App.jsx                   # React SPA 主应用（10 页面）
+│   │   ├── main.jsx                  # React 挂载入口
+│   │   └── styles.css                # 企业级毛玻璃视觉样式
+│   └── streamlit_app.py              # 旧版 Streamlit 前端（legacy）
 ├── data/                             # 数据目录（自动生成）
 │   ├── study_agent.db                # SQLite 数据库
 │   └── chroma_db/                    # ChromaDB 持久化
@@ -323,8 +401,11 @@ streamlit run streamlit_app.py
 - [x] **v0.2** — 笔记生成后自动入库（SQLite + ChromaDB）、Embedding 三级 Fallback ✅
 - [x] **v0.3** — 文件上传（PDF/MD/TXT）、Multi-Query + Rerank、错题本前端 ✅
 - [x] **v0.4** — SM-2 遗忘曲线联动、学习仪表盘、复习计划、混淆对检测 ✅
-- [ ] **v0.5** — 用户认证（JWT）、前端拆分优化、Docker 容器化
-- [ ] **v1.0** — 综合评估指标、自动化测试、Next.js 正式前端
+- [x] **v0.5** — React/Vite 企业前端、企业蓝图页、毛玻璃视觉体系、基础企业 Demo 叙事
+- [ ] **v0.6** — 用户认证（JWT）、前端拆分优化、Docker 容器化、基础企业 Demo 数据
+- [ ] **v0.7** — 企业组织/角色模型、知识库权限、题库审核流、部门看板
+- [ ] **v0.8** — PostgreSQL/pgvector 适配、结构化日志、模型成本统计、备份恢复
+- [ ] **v1.0** — 综合评估指标、自动化测试、Next.js 正式前端、企业 LMS/IM 集成
 
 ---
 
